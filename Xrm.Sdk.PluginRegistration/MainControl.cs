@@ -1235,14 +1235,14 @@ namespace Xrm.Sdk.PluginRegistration
                 var messageName = Organization.Messages[step.MessageId].Name;
                 var message = m_org.FindMessage(messageName);
                 var primaryEntity = "none";
-                var secondayEntity = "none";
+                var secondaryEntity = "none";
 
                 if (Organization.MessageEntities.ContainsKey(step.MessageEntityId))
                 {
                     CrmMessageEntity msgEntity = message[step.MessageEntityId];
 
                     primaryEntity = msgEntity.PrimaryEntity;
-                    secondayEntity = msgEntity.SecondaryEntity;
+                    secondaryEntity = msgEntity.SecondaryEntity;
                 }
 
                 var record = new CsvModel
@@ -1254,7 +1254,7 @@ namespace Xrm.Sdk.PluginRegistration
                     FilteringAttributes = step.FilteringAttributes,
                     Deployment = step.Deployment.GetDescription(),
                     PrimaryEntity = primaryEntity,
-                    SecondayEntity = secondayEntity,
+                    SecondaryEntity = secondaryEntity,
                 };
 
                 return record;
