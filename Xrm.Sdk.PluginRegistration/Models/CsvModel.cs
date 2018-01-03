@@ -10,7 +10,7 @@
         public string Description { get; set; }
         [Name("Primary Entity")]
         public string PrimaryEntity { get; set; }
-        [Name("Seconday Entity")]
+        [Name("Secondary Entity")]
         public string SecondayEntity { get; set; }
         [Name("Message")]
         public string Message { get; set; }
