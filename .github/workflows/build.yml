@@ -1,0 +1,60 @@
+name: Build
+
+on:
+  pull_request:
+  push:
+    branches: [master]
+  workflow_dispatch:
+
+concurrency:
+  group: build-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: microsoft/setup-msbuild@v2
+
+      - name: Build
+        run: msbuild PluginRegistration.sln -restore -m -p:Configuration=Release -v:minimal -nologo
+
+      - name: Test
+        shell: pwsh
+        run: |
+          $vstest = & "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe" -latest -products * `
+            -find "**\TestPlatform\vstest.console.exe" | Select-Object -First 1
+          & $vstest Xrm.Sdk.PluginRegistration.Tests\bin\Release\Xrm.Sdk.PluginRegistration.Tests.dll --logger:trx --ResultsDirectory:TestResults
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      # Same layout as the XrmToolBox Plugins folder, so a PR build can be dropped in for testing
+      - name: Stage plugin files
+        shell: pwsh
+        run: |
+          $out = "artifact\Plugins"
+          $deps = "$out\Xrm.Sdk.PluginRegistration"
+          New-Item -ItemType Directory -Force $deps | Out-Null
+          $bin = "Xrm.Sdk.PluginRegistration\bin\Release"
+          Copy-Item "$bin\Xrm.Sdk.PluginRegistration.dll" $out
+          ([xml](Get-Content Xrm.Sdk.PluginRegistration.nuspec)).package.files.file |
+            Where-Object { $_.target -like '*\Plugins\Xrm.Sdk.PluginRegistration' } |
+            ForEach-Object { Copy-Item $_.src $deps }
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: plugin-${{ github.sha }}
+          path: artifact/
+          retention-days: 14
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: test-results-${{ github.sha }}
+          path: TestResults/
+          retention-days: 14
+          if-no-files-found: ignore
