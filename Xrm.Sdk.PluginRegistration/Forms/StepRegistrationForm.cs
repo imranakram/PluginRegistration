@@ -420,7 +420,7 @@ namespace Xrm.Sdk.PluginRegistration.Forms
                 lnkInvalidSecureConfigurationId.Top = lblInvalidSecureConfigurationId.Bottom + 6;
 
                 picInvalidSecureConfigurationId.Left = groupLeft;
-                lblInvalidSecureConfigurationId.Left = picAccessDenied.Right;
+                lblInvalidSecureConfigurationId.Left = picInvalidSecureConfigurationId.Right;
                 lnkInvalidSecureConfigurationId.Left = lblInvalidSecureConfigurationId.Left;
 
                 m_secureConfigurationIdIsInvalid = true;
