@@ -516,18 +516,6 @@ namespace Xrm.Sdk.PluginRegistration
             {
                 toolViewMessage.PerformClick();
             }
-            else if (e.Control && e.Shift && e.KeyCode == Keys.E && toolViewEntity.Enabled)
-            {
-                toolViewEntity.PerformClick();
-            }
-            else if (e.Control && e.Shift && e.KeyCode == Keys.E && toolViewEntity.Enabled)
-            {
-                toolViewEntity.PerformClick();
-            }
-            else if (e.Control && e.Shift && e.KeyCode == Keys.E && toolViewEntity.Enabled)
-            {
-                toolViewEntity.PerformClick();
-            }
         }
 
         public void ReceiveKeyPressShortcut(KeyPressEventArgs e)
