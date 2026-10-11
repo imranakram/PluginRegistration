@@ -1868,7 +1868,7 @@ namespace Xrm.Sdk.PluginRegistration
                 return;
             }
 
-            Enabled = false;
+            SetRegistrationControlsEnabled(false);
             try
             {
                 RegistrationHelper.UpdateStepStatus(m_org, step.StepId, !step.Enabled);
@@ -1884,7 +1884,7 @@ namespace Xrm.Sdk.PluginRegistration
             }
             finally
             {
-                Enabled = true;
+                SetRegistrationControlsEnabled(connectionReady);
             }
         }
 
@@ -2023,7 +2023,7 @@ namespace Xrm.Sdk.PluginRegistration
             if (MessageBox.Show("Are you sure you want to unregister this item?", "Unregister",
                 MessageBoxButtons.YesNo, MessageBoxIcon.Question, MessageBoxDefaultButton.Button2) == DialogResult.Yes)
             {
-                Enabled = false;
+                SetRegistrationControlsEnabled(false);
                 // this.MainForm.EnableToolBar(false);
 
                 try
@@ -2048,7 +2048,7 @@ namespace Xrm.Sdk.PluginRegistration
                         SelectItem(trvPlugins.SelectedNode);
                     }
 
-                    Enabled = true;
+                    SetRegistrationControlsEnabled(connectionReady);
                     // this.MainForm.EnableToolBar(true);
                 }
 
