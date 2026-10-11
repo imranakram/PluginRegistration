@@ -41,6 +41,16 @@ namespace Xrm.Sdk.PluginRegistration.Forms
 
         private string m_stepName = string.Empty;
 
+        //Baseline geometry captured once, used to grow crmFilteringAttributes into the
+        //spare vertical space of the left column when its value does not fit on one line
+        private readonly Dictionary<Control, int> m_baseTopBelowFilteringAttributes = new Dictionary<Control, int>();
+        private readonly Dictionary<Control, int> m_baseTopBelowGeneral = new Dictionary<Control, int>();
+        private int m_appliedFilteringAttributesGrowth = 0;
+        private int m_baseFilteringAttributesHeight;
+        private int m_baseGeneralHeight;
+        private int m_baseLeftColumnHeight;
+        private bool m_filteringAttributesLayoutCaptured = false;
+
         #endregion Private Fields
 
         #region Public Constructors
@@ -81,12 +91,16 @@ namespace Xrm.Sdk.PluginRegistration.Forms
             this.crmFilteringAttributes.ScrollBars = ScrollBars.None;
             this.crmFilteringAttributes.Size = new System.Drawing.Size(316, 20);
             this.crmFilteringAttributes.TabIndex = 9;
-            this.crmFilteringAttributes.WordWrap = false;
+            this.crmFilteringAttributes.WordWrap = true;
 
             #endregion Initialization of crmFilteringAttributes
 
             InitializeComponent();
             this.grpGeneral.Controls.Add(this.crmFilteringAttributes);
+
+            CaptureFilteringAttributesLayout();
+            this.crmFilteringAttributes.AttributesChanged += new EventHandler<EventArgs>(this.crmFilteringAttributes_AttributesChanged);
+            this.pnlLeftColumn.SizeChanged += new EventHandler(this.pnlLeftColumn_SizeChanged);
 
             //Initialize the auto-complete on the Message field
             var msgList = new AutoCompleteStringCollection();
@@ -354,6 +368,7 @@ namespace Xrm.Sdk.PluginRegistration.Forms
                 }
 
                 crmFilteringAttributes.Attributes = m_currentStep.FilteringAttributes;
+                ApplyFilteringAttributesLayout();
                 chkDeleteAsyncOperationIfSuccessful.Checked = m_currentStep.DeleteAsyncOperationIfSuccessful;
                 chkDeleteAsyncOperationIfSuccessful.Enabled = (m_currentStep.Mode == CrmPluginStepMode.Asynchronous);
 
@@ -863,6 +878,8 @@ namespace Xrm.Sdk.PluginRegistration.Forms
                 crmFilteringAttributes.Enabled = false;
                 crmFilteringAttributes.DisabledMessage = "Message/Entity does not support Filtered Attributes";
             }
+
+            ApplyFilteringAttributesLayout();
         }
 
         private void CheckDeploymentSupported()
@@ -1148,6 +1165,99 @@ namespace Xrm.Sdk.PluginRegistration.Forms
             {
                 m_stepName = GenerateDescription();
             }
+        }
+
+        /// <summary>
+        /// Records where everything sits before any growth is applied, so that
+        /// ApplyFilteringAttributesLayout can always work from the original positions
+        /// rather than accumulating offsets.
+        /// </summary>
+        private void CaptureFilteringAttributesLayout()
+        {
+            m_baseFilteringAttributesHeight = crmFilteringAttributes.Height;
+            m_baseGeneralHeight = grpGeneral.Height;
+
+            foreach (Control control in grpGeneral.Controls)
+            {
+                //Strictly below the row, so that lblFilteringAttributes stays put
+                if (control.Top >= crmFilteringAttributes.Bottom)
+                {
+                    m_baseTopBelowFilteringAttributes.Add(control, control.Top);
+                }
+            }
+
+            m_baseLeftColumnHeight = 0;
+            foreach (Control control in pnlLeftColumn.Controls)
+            {
+                if (control != grpGeneral)
+                {
+                    m_baseTopBelowGeneral.Add(control, control.Top);
+                }
+
+                if (control.Bottom > m_baseLeftColumnHeight)
+                {
+                    m_baseLeftColumnHeight = control.Bottom;
+                }
+            }
+
+            m_filteringAttributesLayoutCaptured = true;
+        }
+
+        /// <summary>
+        /// Grows the Filtering Attributes field so a long attribute list becomes readable,
+        /// but only as far as the value needs and as far as the spare height in the left
+        /// column allows. Everything below it moves down by the same amount.
+        /// </summary>
+        private void ApplyFilteringAttributesLayout()
+        {
+            if (!m_filteringAttributesLayoutCaptured)
+            {
+                return;
+            }
+
+            int spare = pnlLeftColumn.ClientSize.Height - m_baseLeftColumnHeight;
+            int wanted = crmFilteringAttributes.ContentHeight - m_baseFilteringAttributesHeight;
+            int growth = crmFilteringAttributes.Enabled ? Math.Max(0, Math.Min(wanted, spare)) : 0;
+
+            if (growth != m_appliedFilteringAttributesGrowth)
+            {
+                pnlLeftColumn.SuspendLayout();
+                grpGeneral.SuspendLayout();
+
+                crmFilteringAttributes.Height = m_baseFilteringAttributesHeight + growth;
+                foreach (KeyValuePair<Control, int> control in m_baseTopBelowFilteringAttributes)
+                {
+                    control.Key.Top = control.Value + growth;
+                }
+
+                grpGeneral.Height = m_baseGeneralHeight + growth;
+                foreach (KeyValuePair<Control, int> control in m_baseTopBelowGeneral)
+                {
+                    control.Key.Top = control.Value + growth;
+                }
+
+                grpGeneral.ResumeLayout();
+                pnlLeftColumn.ResumeLayout();
+
+                m_appliedFilteringAttributesGrowth = growth;
+            }
+
+            //Only offer a scrollbar when the value still does not fit after growing
+            ScrollBars scrollBars = wanted > growth ? ScrollBars.Vertical : ScrollBars.None;
+            if (crmFilteringAttributes.ScrollBars != scrollBars)
+            {
+                crmFilteringAttributes.ScrollBars = scrollBars;
+            }
+        }
+
+        private void crmFilteringAttributes_AttributesChanged(object sender, EventArgs e)
+        {
+            ApplyFilteringAttributesLayout();
+        }
+
+        private void pnlLeftColumn_SizeChanged(object sender, EventArgs e)
+        {
+            ApplyFilteringAttributesLayout();
         }
 
         private void txtRank_KeyPress(object sender, KeyPressEventArgs e)

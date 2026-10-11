@@ -142,6 +142,26 @@ namespace Xrm.Sdk.PluginRegistration.Controls
             }
         }
 
+        /// <summary>
+        /// Height this control would need to show its entire value at the current width.
+        /// May be smaller than the current height when the value is short.
+        /// </summary>
+        [Browsable(false)]
+        public int ContentHeight
+        {
+            get
+            {
+                var proposedSize = new System.Drawing.Size(txtAttributes.ClientSize.Width, int.MaxValue);
+                var flags = TextFormatFlags.WordBreak | TextFormatFlags.TextBoxControl | TextFormatFlags.NoPadding;
+
+                int textHeight = TextRenderer.MeasureText(
+                    txtAttributes.Text ?? string.Empty, txtAttributes.Font, proposedSize, flags).Height;
+
+                //Add back whatever the border and any other chrome takes up
+                return textHeight + (Height - txtAttributes.ClientSize.Height);
+            }
+        }
+
         [Browsable(false)]
         public bool HasAttributes
         {
