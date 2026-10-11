@@ -35,6 +35,8 @@
   <ItemGroup>
     <Reference Include="System" />
     <Reference Include="System.Core" />
+    <Reference Include="System.Drawing" />
+    <Reference Include="System.Windows.Forms" />
     <Reference Include="System.DirectoryServices" />
     <Reference Include="System.DirectoryServices.AccountManagement" />
     <Reference Include="System.IdentityModel" />
@@ -53,6 +55,9 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="Enities\SdkMessageFixture.cs" />
+    <Compile Include="Connections\ConnectionStateTests.cs" />
+    <Compile Include="Connections\OrganizationMessageLoadingTests.cs" />
+    <Compile Include="RecordingOrganizationService.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
   </ItemGroup>
   <ItemGroup>

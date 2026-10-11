@@ -246,6 +246,7 @@ namespace Xrm.Sdk.PluginRegistration
                     SendMessageToStatusBar(this, message);
                 }
             }));
+            ResetConnectionState();
         }
 
         #endregion Public Constructors
@@ -448,6 +449,7 @@ namespace Xrm.Sdk.PluginRegistration
             m_org = org;
             m_con = org.ConnectionDetail;
             m_currentView = CrmViewType.Assembly;
+            connectionReady = true;
             LoadNodes();
         }
 
@@ -472,13 +474,15 @@ namespace Xrm.Sdk.PluginRegistration
 
         public void ReceiveKeyDownShortcut(KeyEventArgs e)
         {
+            if (e.KeyCode == Keys.F5)
+            {
+                if (toolRefresh.Enabled) toolRefresh.PerformClick();
+                return;
+            }
+            if (!CanRunRegistrationCommand) return;
             if (e.KeyCode == Keys.Delete && mnuContextNodeUnregister.Enabled && !propGridEntity.ContainsFocus)
             {
                 mnuContextNodeUnregister.PerformClick();
-            }
-            else if (e.KeyCode == Keys.F5 && mnuContextGeneralRefresh.Enabled)
-            {
-                mnuContextGeneralRefresh.PerformClick();
             }
             else if (e.Control && !e.Shift && e.KeyCode == Keys.F && mnuContextGeneralSearch.Enabled)
             {
@@ -558,32 +562,45 @@ namespace Xrm.Sdk.PluginRegistration
 
         public void RefreshFullTreeView()
         {
-            var instruction = new WorkAsyncInfo()
+            if (organizationLoading) return;
+            if (!connectionReady || m_org == null)
+            {
+                if (Service != null && ConnectionDetail != null)
+                    OrganizationControl_ConnectionUpdated(this, new ConnectionUpdatedEventArgs(Service, ConnectionDetail));
+                return;
+            }
+            var organization = m_org;
+            var settings = m_settings;
+            int generation = connectionGeneration;
+            organizationLoading = true;
+            SetRegistrationControlsEnabled(false);
+            WorkAsync(new WorkAsyncInfo
             {
                 Message = "Refreshing assemblies information...",
-                Work = (worker, argument) =>
+                Work = (worker, args) =>
                 {
+                    // Keep the current tree and its organization intact if any read fails.
+                    args.Result = new CrmOrganization(organization.ConnectionDetail, settings,
+                        m_progressIndicator, organization.OrganizationService);
+                },
+                PostWorkCallBack = args =>
+                {
+                    if (generation != connectionGeneration || IsDisposed) return;
+                    organizationLoading = false;
                     try
                     {
-                        // Clear the static message cache before reloading messages
-                        OrganizationHelper.ClearMessageCache();
-                        OrganizationHelper.RefreshConnection(m_org, m_settings, OrganizationHelper.LoadMessages(m_org), m_progressIndicator);
-                        Invoke(new Action(() =>
+                        if (args.Error != null)
                         {
-                            propGridEntity.SelectedObject = null;
-                            LoadNodes();
-                        }));
+                            ErrorMessageForm.ShowErrorMessageBox(this, "Unable to refresh the organization.", "Connection Error", args.Error);
+                            return;
+                        }
+                        m_org = (CrmOrganization)args.Result;
+                        propGridEntity.SelectedObject = null;
+                        LoadNodes();
                     }
-                    catch (Exception ex)
-                    {
-                        Invoke(new Action(() =>
-                        {
-                            ErrorMessageForm.ShowErrorMessageBox(this, "Unable to refresh the organization. Connection must close.", "Connection Error", ex);
-                        }));
-                    }
+                    finally { SetRegistrationControlsEnabled(connectionReady); }
                 }
-            };
-            WorkAsync(instruction);
+            });
         }
 
         public void RefreshImage(CrmPluginImage image)
@@ -1312,7 +1329,7 @@ namespace Xrm.Sdk.PluginRegistration
             }
 
             // Create the new view
-            Enabled = false;
+            SetRegistrationControlsEnabled(false);
             try
             {
                 switch (view)
@@ -1437,12 +1454,16 @@ namespace Xrm.Sdk.PluginRegistration
             }
             finally
             {
-                Enabled = true;
+                SetRegistrationControlsEnabled(connectionReady);
             }
         }
 
         private void OrganizationControl_ConnectionUpdated(object sender, ConnectionUpdatedEventArgs e)
         {
+            int generation = ++connectionGeneration;
+            ResetConnectionState();
+            var service = Service;
+            var connection = e.ConnectionDetail;
             if (!SettingsManager.Instance.TryLoad(GetType(), out m_settings, e.ConnectionDetail.ConnectionId.Value.ToString()))
             {
                 if (SettingsManager.Instance.TryLoad(GetType(), out m_settings))
@@ -1456,15 +1477,26 @@ namespace Xrm.Sdk.PluginRegistration
                 }
             }
 
+            var settings = m_settings;
+            organizationLoading = true;
+            SetRegistrationControlsEnabled(false);
             var instruction = new WorkAsyncInfo()
             {
                 Message = "Loading assemblies information...",
                 Work = (worker, argument) =>
                 {
-                    argument.Result = new CrmOrganization(ConnectionDetail, m_settings, m_progressIndicator, Service);
+                    argument.Result = new CrmOrganization(connection, settings, m_progressIndicator, service);
                 },
                 PostWorkCallBack = (argument) =>
                 {
+                    if (generation != connectionGeneration || IsDisposed) return;
+                    organizationLoading = false;
+                    if (argument.Error != null)
+                    {
+                        SetRegistrationControlsEnabled(connectionReady);
+                        ErrorMessageForm.ShowErrorMessageBox(this, "Unable to load the organization.", "Connection Error", argument.Error);
+                        return;
+                    }
                     Init((CrmOrganization)argument.Result);
 
                     var isValidForPackage = e.ConnectionDetail.OrganizationMajorVersion == 9 && e.ConnectionDetail.OrganizationMinorVersion >= 2 || e.ConnectionDetail.OrganizationMajorVersion > 9;
@@ -2071,6 +2103,14 @@ namespace Xrm.Sdk.PluginRegistration
                     {
                         var step = (CrmPluginStep)trvPlugins.SelectedNode;
 
+                        if (!m_org.Messages.ContainsKey(step.MessageId))
+                        {
+                            MessageBox.Show(this,
+                                "This step's message is not available to the tool (for example, a private message), so the step cannot be edited here.",
+                                "Update Step", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                            return;
+                        }
+
                         CrmPlugin plugin = null;
                         CrmServiceEndpoint serviceEndpoint = null;
 
@@ -2221,13 +2261,14 @@ namespace Xrm.Sdk.PluginRegistration
             var dialog = new AssembliesFilterForm(m_settings);
             if (dialog.ShowDialog(this) == DialogResult.OK)
             {
+                // Save before refreshing: retrying a failed load reloads m_settings from storage.
+                SettingsManager.Instance.Save(GetType(), m_settings, ConnectionDetail.ConnectionId.Value.ToString());
+
                 if (dialog.HasChanged)
                 {
                     SetFilterStatusOnToolbar(!string.IsNullOrEmpty(dialog.Filter) || dialog.ExcludeManagedAssemblies);
                     toolRefresh_Click(this, new EventArgs());
                 }
-
-                SettingsManager.Instance.Save(GetType(), m_settings, ConnectionDetail.ConnectionId.Value.ToString());
             }
         }
 

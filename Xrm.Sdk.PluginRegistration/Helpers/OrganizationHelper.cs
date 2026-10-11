@@ -26,6 +26,7 @@ namespace Xrm.Sdk.PluginRegistration.Helpers
     using Microsoft.Xrm.Sdk.Metadata;
     using Microsoft.Xrm.Sdk.Query;
     using System;
+    using System.Collections.Concurrent;
     using System.Collections.Generic;
     using System.Data;
     using System.Linq;
@@ -43,8 +44,7 @@ namespace Xrm.Sdk.PluginRegistration.Helpers
 
         #region Private Fields
 
-        private static Dictionary<string, ColumnSet> m_entityColumns = new Dictionary<string, ColumnSet>();
-        private static volatile List<CrmMessage> m_messageList = new List<CrmMessage>();
+        private static readonly ConcurrentDictionary<string, ColumnSet> m_entityColumns = new ConcurrentDictionary<string, ColumnSet>();
 
         #endregion Private Fields
 
@@ -317,25 +317,12 @@ namespace Xrm.Sdk.PluginRegistration.Helpers
 
         public static CrmEntityDictionary<CrmMessage> LoadMessages(CrmOrganization org)
         {
-            lock (m_messageList)
+            if (org == null)
             {
-                if (m_messageList.Count == 0)
-                {
-                    m_messageList = OrganizationHelper.LoadMessages(org, null);
-                }
-
-                var messageList = new Dictionary<Guid, CrmMessage>();
-                foreach (CrmMessage msg in m_messageList)
-                {
-                    CrmMessage newMessage = new CrmMessage(null, msg.MessageId, msg.Name,
-                        msg.SupportsFilteredAttributes, msg.CustomizationLevel, msg.CreatedOn, msg.ModifiedOn,
-                        msg.ImageMessagePropertyNames);
-
-                    messageList.Add(newMessage.MessageId, newMessage);
-                }
-
-                return new CrmEntityDictionary<CrmMessage>(messageList);
+                throw new ArgumentNullException("org");
             }
+
+            return new CrmEntityDictionary<CrmMessage>(LoadMessages(org, null).ToDictionary(message => message.MessageId));
         }
 
         ///// <summary>
@@ -347,7 +334,7 @@ namespace Xrm.Sdk.PluginRegistration.Helpers
         //    return LoadMessages(org, null);
         //}
         /// <summary>
-        /// Retrieve the Message entities for the organization. This will be the same for each deployment and organization.
+        /// Retrieve the Message entities for the organization from the server on every call.
         /// </summary>
         /// <param name="org">Organization to be used</param>
         /// <param name="prog">ProgressIndicator that will show the progress as the object is loaded</param>
@@ -686,23 +673,6 @@ namespace Xrm.Sdk.PluginRegistration.Helpers
 
             var assemblyRetrievedFromDatabase = Magic.CastTo<PluginAssembly>(org.OrganizationService.Retrieve(PluginAssembly.EntityLogicalName, assembly.AssemblyId, GetColumnSet(PluginAssembly.EntityLogicalName)));
             assembly.RefreshFromPluginAssembly(assemblyRetrievedFromDatabase);
-        }
-
-        public static void RefreshConnection(CrmOrganization org, Settings settings, CrmEntityDictionary<CrmMessage> messages)
-        {
-            RefreshConnection(org, settings, messages, null);
-        }
-
-        public static void RefreshConnection(CrmOrganization org, Settings settings, CrmEntityDictionary<CrmMessage> messages, ProgressIndicator prog)
-        {
-            if (org == null)
-            {
-                throw new ArgumentNullException("org");
-            }
-
-            org.Connected = false;
-
-            OpenConnection(org, settings, messages, prog);
         }
 
         public static void RefreshImage(CrmOrganization org, CrmPluginImage image, CrmPluginStep step)
@@ -1087,7 +1057,7 @@ namespace Xrm.Sdk.PluginRegistration.Helpers
                         throw new NotImplementedException(entityName.ToString());
                 }
 
-                m_entityColumns.Add(entityName, cols);
+                m_entityColumns.TryAdd(entityName, cols);
             }
 
             return m_entityColumns[entityName];
@@ -1408,17 +1378,6 @@ namespace Xrm.Sdk.PluginRegistration.Helpers
             {
                 //Create the CrmUser object
                 org.Users.Add(user.UserId, user);
-            }
-        }
-
-        /// <summary>
-        /// Clears all messages from the message cache.
-        /// </summary>
-        public static void ClearMessageCache()
-        {
-            lock (m_messageList)
-            {
-                m_messageList.Clear();
             }
         }
 
