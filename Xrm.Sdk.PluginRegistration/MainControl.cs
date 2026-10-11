@@ -500,6 +500,10 @@ namespace Xrm.Sdk.PluginRegistration
             {
                 toolServiceEndpointRegister.PerformClick();
             }
+            else if (e.Control && e.Shift && e.KeyCode == Keys.P && toolViewPackage.Available && toolViewPackage.Enabled)
+            {
+                toolViewPackage.PerformClick();
+            }
             else if (e.Control && e.Shift && e.KeyCode == Keys.A && toolViewAssembly.Enabled)
             {
                 toolViewAssembly.PerformClick();

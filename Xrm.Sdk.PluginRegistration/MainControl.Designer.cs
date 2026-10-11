@@ -438,8 +438,9 @@ namespace Xrm.Sdk.PluginRegistration
             // toolViewPackage
             // 
             this.toolViewPackage.Name = "toolViewPackage";
+            this.toolViewPackage.ShortcutKeyDisplayString = "Ctrl+Shift+P";
             this.toolViewPackage.Size = new System.Drawing.Size(256, 22);
-            this.toolViewPackage.Text = "Display by Package";
+            this.toolViewPackage.Text = "Display by &Package";
             this.toolViewPackage.Visible = false;
             this.toolViewPackage.Click += new System.EventHandler(this.toolView_Click);
             // 
