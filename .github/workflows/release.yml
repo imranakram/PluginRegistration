@@ -1,16 +1,15 @@
 name: Release
 
-# Run from the Actions tab on master. The version defaults to the next 3.<yyyy>.<MM>.<rrr> for the
-# current month (replacing the ADO "PRT-CI" build number + ApplyVersionToAssemblies step).
-# Release notes are taken from <releaseNotes> in Xrm.Sdk.PluginRegistration.nuspec.
+# Publishes the package of an existing, successful CI Build run on master. Nothing is rebuilt.
+# Release notes = <releaseNotes> from the packaged nuspec, followed by GitHub's generated
+# list of merged pull requests and their authors.
 
 on:
   workflow_dispatch:
     inputs:
-      version:
-        description: 'Version override, e.g. 3.2026.10.1 (leave empty for the next one this month)'
-        required: false
-        default: ''
+      run_id:
+        description: 'CI Build run ID whose package to publish (find it in the Actions tab URL)'
+        required: true
       publish_nuget:
         description: 'Push the package to nuget.org'
         type: boolean
@@ -22,112 +21,117 @@ concurrency:
 
 permissions:
   contents: write
+  actions: read
 
 jobs:
   release:
     runs-on: windows-latest
-    steps:
-      - name: Require master
-        if: github.ref != 'refs/heads/master'
-        run: |
-          echo "::error::Releases are only created from master (got ${{ github.ref }})"
-          exit 1
 
-      - uses: actions/checkout@v4
+    steps:
+      - name: Verify CI run
+        id: run
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RUN_ID: ${{ inputs.run_id }}
+        run: |
+          if ($env:RUN_ID -notmatch '^\d+$') { throw "run_id must be the numeric ID of a CI Build run" }
+          $run = gh api "repos/$env:GITHUB_REPOSITORY/actions/runs/$env:RUN_ID" | ConvertFrom-Json
+          if ($LASTEXITCODE -ne 0) { throw "Run $env:RUN_ID not found" }
+          Write-Host "Run $($run.id): $($run.path) on $($run.head_branch) ($($run.event)), $($run.conclusion), commit $($run.head_sha)"
+
+          if ($run.path -ne '.github/workflows/build.yml') { throw "Run $env:RUN_ID is not a CI Build run" }
+          if ($run.head_branch -ne 'master' -or $run.event -ne 'push') { throw "Only CI Build runs from a push to master can be released" }
+          if ($run.conclusion -ne 'success') { throw "Run $env:RUN_ID did not succeed" }
+          "SHA=$($run.head_sha)" >> $env:GITHUB_OUTPUT
+
+      - name: Checkout repository
+        uses: actions/checkout@v4
         with:
+          ref: ${{ steps.run.outputs.SHA }}
           fetch-depth: 0
 
-      - name: Determine version
+      # GitHub generates notes since the previous GitHub release, which here is years old;
+      # start from the latest PRT-* (or old PRT-CI-*) tag before this commit instead
+      - name: Find previous release tag
+        id: previous
+        shell: pwsh
+        run: |
+          $tag = git describe --tags --abbrev=0 --match "PRT-*" "${{ steps.run.outputs.SHA }}" 2>$null
+          if ($LASTEXITCODE -ne 0) { $tag = '' }
+          "TAG=$tag" >> $env:GITHUB_OUTPUT
+          Write-Host "Previous release tag: $tag"
+
+      - name: Download nupkg artifact from CI run
+        uses: actions/download-artifact@v4
+        with:
+          run-id: ${{ inputs.run_id }}
+          github-token: ${{ github.token }}
+          pattern: 'nupkg-*'
+          path: nupkg
+          merge-multiple: true
+
+      - name: Resolve version and release notes
         id: version
         shell: pwsh
         env:
-          VERSION_INPUT: ${{ inputs.version }}
+          GH_TOKEN: ${{ github.token }}
         run: |
-          if ($env:VERSION_INPUT) {
-            if ($env:VERSION_INPUT -notmatch '^3\.(\d{4})\.(\d{1,2})\.(\d{1,3})$') {
-              throw "Version '$env:VERSION_INPUT' must look like 3.2026.10.1"
-            }
-            $year = $Matches[1]; $month = [int]$Matches[2]; $rev = [int]$Matches[3]
+          $pkg = Get-ChildItem nupkg\*.nupkg | Select-Object -First 1
+          if (-not $pkg) { throw "No .nupkg found in artifact" }
+          # filename example: Xrm.Sdk.PluginRegistration.3.2026.10.7.nupkg
+          if ($pkg.Name -notmatch '^Xrm\.Sdk\.PluginRegistration\.(3)\.(\d{4})\.(\d+)\.(\d+)\.nupkg$') {
+            throw "Unexpected package name $($pkg.Name)"
           }
-          else {
-            $now = [DateTime]::UtcNow
-            $year = $now.ToString('yyyy'); $month = $now.Month
-            $pattern = "3.$year.$($month.ToString('00'))."
-            $revs = git tag -l "PRT-$pattern*" "PRT-CI-$pattern*" | ForEach-Object { [int]($_ -split '\.')[-1] }
-            $rev = 1 + ($revs | Measure-Object -Maximum).Maximum
+          $version = '{0}.{1}.{2}.{3}' -f $Matches[1], $Matches[2], $Matches[3], $Matches[4]
+          $tag = 'PRT-{0}.{1}.{2:00}.{3:000}' -f $Matches[1], $Matches[2], [int]$Matches[3], [int]$Matches[4]
+
+          gh api "repos/$env:GITHUB_REPOSITORY/git/ref/tags/$tag" --silent 2>$null
+          if ($LASTEXITCODE -eq 0) { throw "Tag $tag already exists" }
+
+          # Use the notes inside the package, so they match exactly what is published
+          Add-Type -AssemblyName System.IO.Compression.FileSystem
+          $zip = [IO.Compression.ZipFile]::OpenRead($pkg.FullName)
+          try {
+            $entry = $zip.Entries | Where-Object { $_.FullName -like '*.nuspec' } | Select-Object -First 1
+            $reader = [IO.StreamReader]::new($entry.Open())
+            [xml]$nuspec = $reader.ReadToEnd()
+            $reader.Dispose()
           }
+          finally { $zip.Dispose() }
+          $nuspec.package.metadata.releaseNotes.Trim() | Set-Content release-notes.md
 
-          # Same shapes as earlier releases: tag/file version 3.2026.04.001, NuGet version 3.2026.4.1
-          $display = '3.{0}.{1:00}.{2:000}' -f $year, $month, $rev
-          $nuget = '3.{0}.{1}.{2}' -f $year, $month, $rev
-          $tag = "PRT-$display"
+          "VERSION=$version" >> $env:GITHUB_OUTPUT
+          "TAG=$tag" >> $env:GITHUB_OUTPUT
+          Write-Host "Releasing $tag ($($pkg.Name))"
 
-          if (git tag -l $tag) { throw "Tag $tag already exists" }
+      - name: Setup NuGet
+        if: inputs.publish_nuget
+        uses: NuGet/setup-nuget@v2
 
-          Write-Host "Releasing $tag (NuGet $nuget)"
-          "display=$display" >> $env:GITHUB_OUTPUT
-          "nuget=$nuget" >> $env:GITHUB_OUTPUT
-          "tag=$tag" >> $env:GITHUB_OUTPUT
-
-      - name: Apply version to AssemblyInfo
-        shell: pwsh
-        run: |
-          $file = 'Xrm.Sdk.PluginRegistration\Properties\AssemblyInfo.cs'
-          $version = '${{ steps.version.outputs.display }}'
-          $content = Get-Content $file -Raw
-          $content = $content -replace 'Assembly(File)?Version\("[^"]*"\)', "Assembly`$1Version(""$version"")"
-          Set-Content $file $content -NoNewline -Encoding utf8BOM
-          Select-String -Path $file -Pattern 'AssemblyVersion|AssemblyFileVersion'
-
-      - uses: microsoft/setup-msbuild@v2
-
-      - uses: NuGet/setup-nuget@v2
-
-      - name: Build
-        run: msbuild PluginRegistration.sln -restore -m -p:Configuration=Release -v:minimal -nologo
-
-      - name: Test
-        shell: pwsh
-        run: |
-          $vstest = & "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe" -latest -products * `
-            -find "**\TestPlatform\vstest.console.exe" | Select-Object -First 1
-          & $vstest Xrm.Sdk.PluginRegistration.Tests\bin\Release\Xrm.Sdk.PluginRegistration.Tests.dll
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-
-      - name: Pack
-        shell: pwsh
-        run: |
-          nuget pack Xrm.Sdk.PluginRegistration.nuspec -Version ${{ steps.version.outputs.nuget }} -OutputDirectory out -NonInteractive
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-
-          # Zip with the XrmToolBox Plugins folder layout, for manual installs
-          $nupkg = Get-ChildItem out\*.nupkg | Select-Object -First 1
-          Expand-Archive $nupkg.FullName -DestinationPath out\nupkg
-          Compress-Archive out\nupkg\lib\net48\Plugins -DestinationPath "out\Xrm.Sdk.PluginRegistration-${{ steps.version.outputs.display }}.zip"
-
-          ([xml](Get-Content Xrm.Sdk.PluginRegistration.nuspec)).package.metadata.releaseNotes.Trim() |
-            Set-Content out\release-notes.md
-
-      - name: Push to nuget.org
+      - name: Publish to NuGet.org
         if: inputs.publish_nuget
         shell: pwsh
         env:
           NUGET_API_KEY: ${{ secrets.NUGET_API_KEY }}
         run: |
           if (-not $env:NUGET_API_KEY) { throw "The NUGET_API_KEY repository secret is not set" }
-          nuget push out\*.nupkg -ApiKey $env:NUGET_API_KEY -Source https://api.nuget.org/v3/index.json -SkipDuplicate -NonInteractive
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          nuget push nupkg\*.nupkg -ApiKey $env:NUGET_API_KEY -Source https://api.nuget.org/v3/index.json -SkipDuplicate -NonInteractive
+          if ($LASTEXITCODE -ne 0) { throw "nuget push failed with exit code $LASTEXITCODE" }
 
-      # Tag last, so a failed build or push leaves no tag behind and the run can simply be repeated
-      - name: Create tag and GitHub release
+      # Tag last, so a failed push leaves no tag behind and the run can simply be repeated
+      - name: Create GitHub release
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
+          PREVIOUS_TAG: ${{ steps.previous.outputs.TAG }}
         run: |
-          gh release create ${{ steps.version.outputs.tag }} `
-            --target ${{ github.sha }} `
-            --title "${{ steps.version.outputs.tag }}" `
-            --notes-file out\release-notes.md `
-            (Get-Item out\*.nupkg).FullName `
-            (Get-Item out\*.zip).FullName
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $notesStart = if ($env:PREVIOUS_TAG) { @('--notes-start-tag', $env:PREVIOUS_TAG) } else { @() }
+          gh release create "${{ steps.version.outputs.TAG }}" `
+            --repo $env:GITHUB_REPOSITORY `
+            --target "${{ steps.run.outputs.SHA }}" `
+            --title "${{ steps.version.outputs.TAG }}" `
+            --notes-file release-notes.md `
+            --generate-notes @notesStart `
+            (Get-ChildItem nupkg\*.nupkg, nupkg\*.zip).FullName
+          if ($LASTEXITCODE -ne 0) { throw "gh release create failed with exit code $LASTEXITCODE" }
