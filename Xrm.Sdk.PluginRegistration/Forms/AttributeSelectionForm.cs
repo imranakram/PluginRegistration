@@ -87,7 +87,7 @@ namespace Xrm.Sdk.PluginRegistration.Forms
                     ImageIndex = 0
                 };
                 item.SubItems.Add(attribute.LogicalName);
-                item.SubItems.Add(attribute.TypeName == "MultiSelectPicklistType" ? "MultiSelect Picklist" : attribute.Type.ToString());
+                item.SubItems.Add(GetDisplayTypeName(attribute));
                 item.Tag = attribute;
                 item.Checked = currentAllChecked || currentValue.Contains(item.Name);
                 var addattribute = false;
@@ -116,7 +116,14 @@ namespace Xrm.Sdk.PluginRegistration.Forms
                     case AttributeTypeCode.CalendarRules:
                     case AttributeTypeCode.Uniqueidentifier:
                     case AttributeTypeCode.Virtual:
-                        if (attribute.IsPrimaryId || attribute.TypeName == "MultiSelectPicklistType")
+                        // File and Image (new-style) attributes report AttributeType == Virtual, with the
+                        // concrete subtype distinguished via AttributeTypeName ("FileType" / "ImageType"),
+                        // the same way MultiSelectPicklistType is distinguished. Without these checks, File
+                        // and Image attributes were silently excluded from the filtering attributes list.
+                        if (attribute.IsPrimaryId
+                            || attribute.TypeName == "MultiSelectPicklistType"
+                            || attribute.TypeName == "FileType"
+                            || attribute.TypeName == "ImageType")
                         {
                             addattribute = true;
                         }
@@ -132,6 +139,21 @@ namespace Xrm.Sdk.PluginRegistration.Forms
         #endregion Public Constructors
 
         #region Private Methods
+
+        private static string GetDisplayTypeName(CrmAttribute attribute)
+        {
+            switch (attribute.TypeName)
+            {
+                case "MultiSelectPicklistType":
+                    return "MultiSelect Picklist";
+                case "FileType":
+                    return "File";
+                case "ImageType":
+                    return "Image";
+                default:
+                    return attribute.Type.ToString();
+            }
+        }
 
         private void AttributeSelectionForm_Load(object sender, EventArgs e)
         {
