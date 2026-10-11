@@ -420,7 +420,7 @@ namespace Xrm.Sdk.PluginRegistration.Forms
                 lnkInvalidSecureConfigurationId.Top = lblInvalidSecureConfigurationId.Bottom + 6;
 
                 picInvalidSecureConfigurationId.Left = groupLeft;
-                lblInvalidSecureConfigurationId.Left = picAccessDenied.Right;
+                lblInvalidSecureConfigurationId.Left = picInvalidSecureConfigurationId.Right;
                 lnkInvalidSecureConfigurationId.Left = lblInvalidSecureConfigurationId.Left;
 
                 m_secureConfigurationIdIsInvalid = true;
@@ -1179,8 +1179,11 @@ namespace Xrm.Sdk.PluginRegistration.Forms
 
             foreach (Control control in grpGeneral.Controls)
             {
-                //Strictly below the row, so that lblFilteringAttributes stays put
-                if (control.Top >= crmFilteringAttributes.Bottom)
+                //Rows below the Filtering Attributes row. Compared against the designer-created label
+                //rather than crmFilteringAttributes, which is added after InitializeComponent and so
+                //may not share the same DPI scaling as the other controls
+                if (control != lblFilteringAttributes && control != crmFilteringAttributes
+                    && control.Top > lblFilteringAttributes.Top)
                 {
                     m_baseTopBelowFilteringAttributes.Add(control, control.Top);
                 }

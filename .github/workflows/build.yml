@@ -1,0 +1,133 @@
+name: CI Build
+
+# Every run gets a version 3.<yyyy>.<MM>.<rrr>, where rrr counts this workflow's runs in the month
+# (same scheme as the old ADO "PRT-CI" builds). The package of a successful master run is what
+# release.yml publishes, so the released binaries are exactly the ones built and tested here.
+
+# Pushes build only on master: a change on its way there is built by its pull request,
+# against the merge result. Building the branch push as well ran the same build twice and
+# used up a version number each time. Build any branch by hand with workflow_dispatch.
+on:
+  push:
+    branches:
+      - master
+  pull_request:
+    branches:
+      - master
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  build:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Calculate version
+        id: version
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # Count runs created from the start of the month up to this run's own creation time,
+          # so concurrent runs cannot end up with the same number
+          $created = [DateTime]::Parse((gh api "repos/$env:GITHUB_REPOSITORY/actions/runs/$env:GITHUB_RUN_ID" --jq .created_at)).ToUniversalTime()
+          $from = [DateTime]::new($created.Year, $created.Month, 1, 0, 0, 0, [DateTimeKind]::Utc)
+          $range = '{0:yyyy-MM-ddTHH:mm:ssZ}..{1:yyyy-MM-ddTHH:mm:ssZ}' -f $from, $created
+          $rev = [int](gh api "repos/$env:GITHUB_REPOSITORY/actions/workflows/build.yml/runs?created=$range&per_page=1" --jq .total_count)
+          if ($LASTEXITCODE -ne 0 -or $rev -lt 1) { throw "Unable to count the runs of this month" }
+
+          # Assembly/file version and tag use 3.2026.04.001, NuGet normalizes it to 3.2026.4.1
+          $display = '3.{0}.{1:00}.{2:000}' -f $created.Year, $created.Month, $rev
+          $nuget = '3.{0}.{1}.{2}' -f $created.Year, $created.Month, $rev
+          "VERSION=$nuget" >> $env:GITHUB_OUTPUT
+          "DISPLAY_VERSION=$display" >> $env:GITHUB_OUTPUT
+          Write-Host "Computed version: $display (NuGet $nuget)"
+
+      - name: Patch AssemblyInfo.cs
+        shell: pwsh
+        run: |
+          $version = "${{ steps.version.outputs.DISPLAY_VERSION }}"
+          $file = "Xrm.Sdk.PluginRegistration\Properties\AssemblyInfo.cs"
+          $content = (Get-Content $file -Raw) -replace 'Assembly(File)?Version\("[^"]*"\)', "Assembly`$1Version(`"$version`")"
+          Set-Content $file $content -NoNewline -Encoding utf8BOM
+          Write-Host "Patched $file to version $version"
+
+      - name: Patch nuspec version
+        shell: pwsh
+        run: |
+          $version = "${{ steps.version.outputs.VERSION }}"
+          $path = Resolve-Path "Xrm.Sdk.PluginRegistration.nuspec"
+          [xml]$xml = Get-Content $path
+          $xml.package.metadata.version = $version
+          $xml.Save($path)
+          Write-Host "Patched nuspec to version $version"
+
+      - name: Setup NuGet
+        uses: NuGet/setup-nuget@v2
+
+      - name: Setup MSBuild
+        uses: microsoft/setup-msbuild@v2
+
+      - name: Build solution (Release)
+        run: msbuild PluginRegistration.sln -restore /p:Configuration=Release /m /v:minimal /nologo
+
+      - name: Locate VSTest
+        id: vstest
+        shell: pwsh
+        run: |
+          $vswhere = Join-Path ${env:ProgramFiles(x86)} "Microsoft Visual Studio\Installer\vswhere.exe"
+          if (-not (Test-Path $vswhere)) { throw "vswhere.exe not found at $vswhere" }
+          $console = & $vswhere -products * `
+                       -find "Common7\IDE\Extensions\TestPlatform\vstest.console.exe" | Select-Object -First 1
+          if (-not $console) { throw "vstest.console.exe not found by vswhere" }
+          "PATH=$console" >> $env:GITHUB_OUTPUT
+          Write-Host "Found $console"
+
+      - name: Run tests (Release)
+        shell: pwsh
+        run: |
+          & "${{ steps.vstest.outputs.PATH }}" `
+            "Xrm.Sdk.PluginRegistration.Tests\bin\Release\Xrm.Sdk.PluginRegistration.Tests.dll" `
+            /Framework:.NETFramework,Version=v4.8 `
+            /Logger:"trx;LogFileName=Xrm.Sdk.PluginRegistration.Tests.trx" `
+            /ResultsDirectory:TestResults
+          if ($LASTEXITCODE -ne 0) { throw "Tests failed with exit code $LASTEXITCODE" }
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results-${{ steps.version.outputs.VERSION }}
+          path: TestResults/*.trx
+          if-no-files-found: ignore
+
+      - name: NuGet pack
+        shell: pwsh
+        run: |
+          nuget pack Xrm.Sdk.PluginRegistration.nuspec -OutputDirectory nupkg -NonInteractive
+          if ($LASTEXITCODE -ne 0) { throw "nuget pack failed with exit code $LASTEXITCODE" }
+
+          # The Plugins folder as XrmToolBox expects it, for testing a build without NuGet
+          $pkg = Get-ChildItem nupkg\*.nupkg | Select-Object -First 1
+          Expand-Archive $pkg.FullName -DestinationPath expanded
+          New-Item -ItemType Directory -Force plugin | Out-Null
+          Move-Item expanded\lib\net48\Plugins plugin\Plugins
+          Compress-Archive plugin\Plugins -DestinationPath "nupkg\Xrm.Sdk.PluginRegistration-${{ steps.version.outputs.DISPLAY_VERSION }}.zip"
+
+      - name: Upload nupkg artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: nupkg-${{ steps.version.outputs.VERSION }}
+          path: nupkg/*
+
+      - name: Upload plugin files
+        uses: actions/upload-artifact@v4
+        with:
+          name: plugin-${{ steps.version.outputs.VERSION }}
+          path: plugin/

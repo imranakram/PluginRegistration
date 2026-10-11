@@ -1,0 +1,149 @@
+name: Release
+
+# Publishes the package of an existing, successful CI Build run on master. Nothing is rebuilt.
+# Release notes = <releaseNotes> from the packaged nuspec, followed by GitHub's generated
+# list of merged pull requests and their authors.
+
+on:
+  workflow_dispatch:
+    inputs:
+      run_id:
+        description: 'CI Build run ID whose package to publish (find it in the Actions tab URL)'
+        required: true
+      publish_nuget:
+        description: 'Push the package to nuget.org'
+        type: boolean
+        default: true
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+# id-token: write lets the job request a GitHub OIDC token, which nuget.org exchanges for a
+# one-hour API key through Trusted Publishing (policy: imranakram/PluginRegistration, release.yml)
+permissions:
+  contents: write
+  actions: read
+  id-token: write
+
+jobs:
+  release:
+    runs-on: windows-latest
+
+    steps:
+      - name: Verify CI run
+        id: run
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RUN_ID: ${{ inputs.run_id }}
+        run: |
+          if ($env:RUN_ID -notmatch '^\d+$') { throw "run_id must be the numeric ID of a CI Build run" }
+          $run = gh api "repos/$env:GITHUB_REPOSITORY/actions/runs/$env:RUN_ID" | ConvertFrom-Json
+          if ($LASTEXITCODE -ne 0) { throw "Run $env:RUN_ID not found" }
+          Write-Host "Run $($run.id): $($run.path) on $($run.head_branch) ($($run.event)), $($run.conclusion), commit $($run.head_sha)"
+
+          if ($run.path -ne '.github/workflows/build.yml') { throw "Run $env:RUN_ID is not a CI Build run" }
+          if ($run.head_branch -ne 'master' -or $run.event -notin 'push', 'workflow_dispatch') {
+            throw "Only CI Build runs on master can be released (got $($run.event) on $($run.head_branch))"
+          }
+          if ($run.conclusion -ne 'success') { throw "Run $env:RUN_ID did not succeed" }
+          "SHA=$($run.head_sha)" >> $env:GITHUB_OUTPUT
+
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ steps.run.outputs.SHA }}
+          fetch-depth: 0
+
+      # GitHub generates notes since the previous GitHub release, which here is years old;
+      # start from the latest PRT-* (or old PRT-CI-*) tag before this commit instead
+      - name: Find previous release tag
+        id: previous
+        shell: pwsh
+        run: |
+          $tag = git describe --tags --abbrev=0 --match "PRT-*" "${{ steps.run.outputs.SHA }}" 2>$null
+          if ($LASTEXITCODE -ne 0) { $tag = '' }
+          "TAG=$tag" >> $env:GITHUB_OUTPUT
+          Write-Host "Previous release tag: $tag"
+
+      - name: Download nupkg artifact from CI run
+        uses: actions/download-artifact@v4
+        with:
+          run-id: ${{ inputs.run_id }}
+          github-token: ${{ github.token }}
+          pattern: 'nupkg-*'
+          path: nupkg
+          merge-multiple: true
+
+      - name: Resolve version and release notes
+        id: version
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $pkg = Get-ChildItem nupkg\*.nupkg | Select-Object -First 1
+          if (-not $pkg) { throw "No .nupkg found in artifact" }
+          # filename example: Xrm.Sdk.PluginRegistration.3.2026.10.7.nupkg
+          if ($pkg.Name -notmatch '^Xrm\.Sdk\.PluginRegistration\.(3)\.(\d{4})\.(\d+)\.(\d+)\.nupkg$') {
+            throw "Unexpected package name $($pkg.Name)"
+          }
+          $version = '{0}.{1}.{2}.{3}' -f $Matches[1], $Matches[2], $Matches[3], $Matches[4]
+          $tag = 'PRT-{0}.{1}.{2:00}.{3:000}' -f $Matches[1], $Matches[2], [int]$Matches[3], [int]$Matches[4]
+
+          gh api "repos/$env:GITHUB_REPOSITORY/git/ref/tags/$tag" --silent 2>$null
+          if ($LASTEXITCODE -eq 0) { throw "Tag $tag already exists" }
+
+          # Use the notes inside the package, so they match exactly what is published
+          Add-Type -AssemblyName System.IO.Compression.FileSystem
+          $zip = [IO.Compression.ZipFile]::OpenRead($pkg.FullName)
+          try {
+            $entry = $zip.Entries | Where-Object { $_.FullName -like '*.nuspec' } | Select-Object -First 1
+            $reader = [IO.StreamReader]::new($entry.Open())
+            [xml]$nuspec = $reader.ReadToEnd()
+            $reader.Dispose()
+          }
+          finally { $zip.Dispose() }
+          $nuspec.package.metadata.releaseNotes.Trim() | Set-Content release-notes.md
+
+          "VERSION=$version" >> $env:GITHUB_OUTPUT
+          "TAG=$tag" >> $env:GITHUB_OUTPUT
+          Write-Host "Releasing $tag ($($pkg.Name))"
+
+      - name: Setup NuGet
+        if: inputs.publish_nuget
+        uses: NuGet/setup-nuget@v2
+
+      # Requested right before the push: the temporary key is only valid for an hour
+      - name: NuGet login (Trusted Publishing)
+        if: inputs.publish_nuget
+        id: nuget-login
+        uses: NuGet/login@v1
+        with:
+          user: ${{ secrets.NUGET_USER }}
+
+      - name: Publish to NuGet.org
+        if: inputs.publish_nuget
+        shell: pwsh
+        env:
+          NUGET_API_KEY: ${{ steps.nuget-login.outputs.NUGET_API_KEY }}
+        run: |
+          nuget push nupkg\*.nupkg -ApiKey $env:NUGET_API_KEY -Source https://api.nuget.org/v3/index.json -SkipDuplicate -NonInteractive
+          if ($LASTEXITCODE -ne 0) { throw "nuget push failed with exit code $LASTEXITCODE" }
+
+      # Tag last, so a failed push leaves no tag behind and the run can simply be repeated
+      - name: Create GitHub release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PREVIOUS_TAG: ${{ steps.previous.outputs.TAG }}
+        run: |
+          $notesStart = if ($env:PREVIOUS_TAG) { @('--notes-start-tag', $env:PREVIOUS_TAG) } else { @() }
+          gh release create "${{ steps.version.outputs.TAG }}" `
+            --repo $env:GITHUB_REPOSITORY `
+            --target "${{ steps.run.outputs.SHA }}" `
+            --title "${{ steps.version.outputs.TAG }}" `
+            --notes-file release-notes.md `
+            --generate-notes @notesStart `
+            (Get-ChildItem nupkg\*.nupkg, nupkg\*.zip).FullName
+          if ($LASTEXITCODE -ne 0) { throw "gh release create failed with exit code $LASTEXITCODE" }

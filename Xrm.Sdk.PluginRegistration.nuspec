@@ -19,24 +19,12 @@
 		<summary>The Classic Microsoft Dynamics CRM tool, now in the XrmToolBox suite</summary>
 		<releaseNotes>
 New features
-- #46: Bulk enable/disable all steps for a plugin type or an entire assembly
-- #78: Added a refresh option for available messages (including newly added Custom Actions) without restarting the tool
-- #84: Export now includes Webhook (Service Endpoint) information
-- #150: Show dependencies for a plugin assembly (button + context menu entry)
-- #166: Allow pasting a comma-separated list of attribute logical names into the Filtering Attributes dialog to directly select attributes (paste-to-select UX improvement)
+- #172: Ctrl+Shift+P shortcut for "Display by Package" (thanks @Mosh-K)
+- #168: File and Image columns can be selected in the attribute picker (thanks @dbarros97)
 
 UX &amp; stability improvements, bug fixes
-- #66: Prevent invalid image registration by disabling Pre-Image for Create steps (Create does not support this image type)
-- #129: Prevent accidental "Save &amp; Close" when pressing Enter in the Step editor
-- #146: Step Configuration editor improvements: monospaced font for JSON/XML, resizable dialog with splitter, word wrap off, and safer default-button behavior to avoid accidental updates
-- #156: Input fields "Unsecure configuration" and "Secure configuration" have maximum number of characters
-- #154: Confirmation dialogs on Enable/Disable all steps operations
-- #155: Toolbar button fixes
-- #158: GCC High error when loading Plugin Packages
-- #160: Null Reference Exception on Update button
-- #163: Cannot register step with Primary Entity = none
-- #165: Restrict "All Attributes" warning to non-Create messages
-- #164: Filtering Attributes not available for Create steps on Dynamics 365 9.1 on-prem
+- #169: Step editor resizes properly: Unsecure/Secure Configuration grow with the window, both columns widen, and Filtering Attributes wraps to show its full value (#170, #171, thanks @skfd)
+- Invalid secure configuration warning no longer overlaps its icon
 		</releaseNotes>
 
 		<tags>XrmToolBox Plugins PluginRegistration</tags>

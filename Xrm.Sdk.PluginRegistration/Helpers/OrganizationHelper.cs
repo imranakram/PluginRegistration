@@ -306,7 +306,9 @@ namespace Xrm.Sdk.PluginRegistration.Helpers
             {
                 // Do not add the child attributes
                 // Do not add the attributes that are not valid for Read
-                if (att.IsValidForRead.Value && null == att.AttributeOf)
+                // Image columns report AttributeOf = their <name>id companion, but are the real column
+                bool isImage = att.AttributeTypeName != null && att.AttributeTypeName.Value == "ImageType";
+                if (att.IsValidForRead.Value && (null == att.AttributeOf || isImage))
                 {
                     attList.Add(new CrmAttribute(att, att.LogicalName == entityMd.PrimaryIdAttribute));
                 }
