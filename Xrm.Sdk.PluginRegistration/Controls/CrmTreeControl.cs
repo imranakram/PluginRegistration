@@ -79,7 +79,8 @@ namespace Xrm.Sdk.PluginRegistration.Controls
         MessageEntity = 256,
         ServiceEndpoint = 512,
         WebHook = 1024,
-        Package = 2048
+        Package = 2048,
+        CustomApi = 4096
     }
 
     public interface ICrmEditableTreeNode : ICrmTreeNode

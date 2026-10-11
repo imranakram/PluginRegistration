@@ -129,6 +129,17 @@
     <Compile Include="Entities\SystemUser.cs" />
     <Compile Include="Entities\Transformation\Magic.cs" />
     <Compile Include="Extensions\EnumExtensions.cs" />
+    <Compile Include="Helpers\CustomApiMapping.cs" />
+    <Compile Include="Helpers\CustomApiEditorData.cs" />
+    <Compile Include="Forms\CustomApiEditorForm.cs" />
+    <Compile Include="Forms\CustomApiParameterForm.cs" />
+    <Compile Include="Forms\CustomApiSolutionForm.cs" />
+    <Compile Include="Forms\CustomApiFormLayout.cs" />
+    <Compile Include="MainControl.CustomApis.cs" />
+    <Compile Include="Wrappers\CrmCustomApiNode.cs" />
+    <Compile Include="Helpers\CustomApiService.cs" />
+    <Compile Include="Helpers\CustomApiValidator.cs" />
+    <Compile Include="Models\CustomApiDefinition.cs" />
     <Compile Include="Forms\AssembliesFilterForm.cs">
       <SubType>Form</SubType>
     </Compile>
