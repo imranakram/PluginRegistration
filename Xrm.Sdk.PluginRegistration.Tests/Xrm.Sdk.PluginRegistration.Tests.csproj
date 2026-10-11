@@ -60,6 +60,12 @@
     <Compile Include="RecordingOrganizationService.cs" />
     <Compile Include="Integration\RegistrationLifecycleTests.cs" />
     <Compile Include="Integration\TestBench.cs" />
+    <Compile Include="CustomApis\CustomApiServiceTests.cs" />
+    <Compile Include="CustomApis\CustomApiEditorDataTests.cs" />
+    <Compile Include="CustomApis\CustomApiTreeTests.cs" />
+    <Compile Include="CustomApis\CustomApiEditorFormTests.cs" />
+    <Compile Include="CustomApis\OrganizationMessageCacheTests.cs" />
+    <Compile Include="CustomApis\CustomApiValidatorTests.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
   </ItemGroup>
   <ItemGroup>
