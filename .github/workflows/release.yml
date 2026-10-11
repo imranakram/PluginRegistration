@@ -63,7 +63,7 @@ jobs:
         shell: pwsh
         run: |
           $tag = git describe --tags --abbrev=0 --match "PRT-*" "${{ steps.run.outputs.SHA }}" 2>$null
-          if ($LASTEXITCODE -ne 0) { $tag = '' }
+          if ($LASTEXITCODE -ne 0) { $tag = ''; $global:LASTEXITCODE = 0 }
           "TAG=$tag" >> $env:GITHUB_OUTPUT
           Write-Host "Previous release tag: $tag"
 
@@ -93,6 +93,8 @@ jobs:
 
           gh api "repos/$env:GITHUB_REPOSITORY/git/ref/tags/$tag" --silent 2>$null
           if ($LASTEXITCODE -eq 0) { throw "Tag $tag already exists" }
+          # "Not found" is the expected answer; don't let gh's exit code end the step as failed
+          $global:LASTEXITCODE = 0
 
           # Use the notes inside the package, so they match exactly what is published
           Add-Type -AssemblyName System.IO.Compression.FileSystem
