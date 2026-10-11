@@ -215,6 +215,7 @@ namespace Xrm.Sdk.PluginRegistration
                 m_entitySorter = new CrmEntitySorter();
             }
             trvPlugins.CrmTreeNodeSorter = m_entitySorter;
+            InitializeCustomApiMenus();
 
             //this.RefreshProfilerGeneralMenu();
 
@@ -410,6 +411,13 @@ namespace Xrm.Sdk.PluginRegistration
 
                 case CrmViewType.Entity:
                 case CrmViewType.Message:
+                    if (m_currentView == CrmViewType.Message && customApiMessageNodes.TryGetValue(step.MessageId, out var apiNode))
+                    {
+                        parentId = apiNode.NodeId;
+                        apiNode.AddStep(step);
+                        m_stepParentList[step.StepId] = parentId;
+                        break;
+                    }
                     parentId = CreateCrmTreeNodes(m_currentView, step.MessageId, step.MessageEntityId, true).NodeId;
 
                     //Add to the step parent id list
@@ -562,6 +570,11 @@ namespace Xrm.Sdk.PluginRegistration
 
         public void RefreshFullTreeView()
         {
+            RefreshFullTreeView(null);
+        }
+
+        private void RefreshFullTreeView(Guid? selectedApiId, CrmViewType? view = null)
+        {
             if (organizationLoading) return;
             if (!connectionReady || m_org == null)
             {
@@ -572,6 +585,7 @@ namespace Xrm.Sdk.PluginRegistration
             var organization = m_org;
             var settings = m_settings;
             int generation = connectionGeneration;
+            bool? knownCustomApiSupport = customApiSupport;
             organizationLoading = true;
             SetRegistrationControlsEnabled(false);
             WorkAsync(new WorkAsyncInfo
@@ -580,8 +594,18 @@ namespace Xrm.Sdk.PluginRegistration
                 Work = (worker, args) =>
                 {
                     // Keep the current tree and its organization intact if any read fails.
-                    args.Result = new CrmOrganization(organization.ConnectionDetail, settings,
+                    var refreshed = new CrmOrganization(organization.ConnectionDetail, settings,
                         m_progressIndicator, organization.OrganizationService);
+                    args.Result = new OrganizationLoadResult
+                    {
+                        Organization = refreshed,
+                        CustomApis = ReadCustomApiCatalog(refreshed, message => worker.ReportProgress(0, message), knownCustomApiSupport)
+                    };
+                },
+                ProgressChanged = args =>
+                {
+                    if (generation == connectionGeneration && !IsDisposed)
+                        SetWorkingMessage((string)args.UserState);
                 },
                 PostWorkCallBack = args =>
                 {
@@ -594,9 +618,15 @@ namespace Xrm.Sdk.PluginRegistration
                             ErrorMessageForm.ShowErrorMessageBox(this, "Unable to refresh the organization.", "Connection Error", args.Error);
                             return;
                         }
-                        m_org = (CrmOrganization)args.Result;
+                        var result = (OrganizationLoadResult)args.Result;
+                        m_org = result.Organization;
+                        // A refresh is a retry, so report a repeated Custom API failure again.
+                        customApiErrorGeneration = null;
+                        ApplyCustomApiCatalog(result.CustomApis);
                         propGridEntity.SelectedObject = null;
-                        LoadNodes();
+                        LoadNodes(view ?? m_currentView);
+                        if (selectedApiId.HasValue && trvPlugins.HasNode(selectedApiId.Value))
+                            SelectNode(selectedApiId.Value);
                     }
                     finally { SetRegistrationControlsEnabled(connectionReady); }
                 }
@@ -801,6 +831,7 @@ namespace Xrm.Sdk.PluginRegistration
             return (node == null || node.NodeType == CrmTreeNodeType.Step
                 || node.NodeType == CrmTreeNodeType.Image || node.NodeType == CrmTreeNodeType.ServiceEndpoint
                 || node.NodeType == CrmTreeNodeType.Message || node.NodeType == CrmTreeNodeType.MessageEntity
+                || node.NodeType == CrmTreeNodeType.CustomApi
                 || node.NodeType == CrmTreeNodeType.Connection || node.NodeType == CrmTreeNodeType.None);
         }
 
@@ -1329,6 +1360,7 @@ namespace Xrm.Sdk.PluginRegistration
             }
 
             // Create the new view
+            customApiMessageNodes.Clear();
             SetRegistrationControlsEnabled(false);
             try
             {
@@ -1408,11 +1440,19 @@ namespace Xrm.Sdk.PluginRegistration
                                 m_viewNodeList.Clear();
                             }
 
-                            //Retrieve the of steps
+                            var apiNodes = view == CrmViewType.Message ? CreateCustomApiNodes() : new List<CrmCustomApiNode>();
+
+                            // API roots exist independently of registered steps and message filters.
                             foreach (var step in Organization.Steps)
                             {
                                 if (step.MessageId != Guid.Empty)
                                 {
+                                    if (customApiMessageNodes.TryGetValue(step.MessageId, out var apiNode))
+                                    {
+                                        apiNode.AddStep(step);
+                                        m_stepParentList.Add(step.StepId, apiNode.NodeId);
+                                        continue;
+                                    }
                                     CrmTreeNode parentNode = CreateCrmTreeNodes(view, step.MessageId, step.MessageEntityId, false);
                                     if (parentNode == null)
                                     {
@@ -1423,10 +1463,11 @@ namespace Xrm.Sdk.PluginRegistration
                                 }
                             }
 
-                            var nodeList = new List<CrmTreeNode>();
+                            var nodeList = new List<ICrmTreeNode>();
                             nodeList.AddRange(m_rootNodeList.Values);
+                            nodeList.AddRange(apiNodes);
 
-                            trvPlugins.LoadNodes(nodeList.ToList<ICrmTreeNode>());
+                            trvPlugins.LoadNodes(nodeList);
                         }
                         break;
 
@@ -1485,7 +1526,17 @@ namespace Xrm.Sdk.PluginRegistration
                 Message = "Loading assemblies information...",
                 Work = (worker, argument) =>
                 {
-                    argument.Result = new CrmOrganization(connection, settings, m_progressIndicator, service);
+                    var organization = new CrmOrganization(connection, settings, m_progressIndicator, service);
+                    argument.Result = new OrganizationLoadResult
+                    {
+                        Organization = organization,
+                        CustomApis = ReadCustomApiCatalog(organization, message => worker.ReportProgress(0, message))
+                    };
+                },
+                ProgressChanged = args =>
+                {
+                    if (generation == connectionGeneration && !IsDisposed)
+                        SetWorkingMessage((string)args.UserState);
                 },
                 PostWorkCallBack = (argument) =>
                 {
@@ -1497,7 +1548,9 @@ namespace Xrm.Sdk.PluginRegistration
                         ErrorMessageForm.ShowErrorMessageBox(this, "Unable to load the organization.", "Connection Error", argument.Error);
                         return;
                     }
-                    Init((CrmOrganization)argument.Result);
+                    var result = (OrganizationLoadResult)argument.Result;
+                    ApplyCustomApiCatalog(result.CustomApis);
+                    Init(result.Organization);
 
                     var isValidForPackage = e.ConnectionDetail.OrganizationMajorVersion == 9 && e.ConnectionDetail.OrganizationMinorVersion >= 2 || e.ConnectionDetail.OrganizationMajorVersion > 9;
 
@@ -1588,6 +1641,17 @@ namespace Xrm.Sdk.PluginRegistration
             DataTable gridTable = null;
             switch (node.NodeType)
             {
+                case CrmTreeNodeType.CustomApi:
+                    var apiNode = (CrmCustomApiNode)node;
+                    toolUpdate.Visible = mnuContextNodeUpdate.Visible = true;
+                    toolUpdate.Enabled = mnuContextNodeUpdate.Enabled = true;
+                    toolUnregister.Enabled = mnuContextNodeUnregister.Enabled = !apiNode.IsManaged;
+                    toolAddToSolution.Visible = tsmiAddToSolution.Visible = true;
+                    gridTable = OrganizationHelper.CreateDataTable<CrmPluginStep>(CrmPluginStep.Columns,
+                        apiNode.NodeChildren.Cast<CrmPluginStep>().ToArray());
+                    foreach (DataRow row in gridTable.Rows) row["Message"] = apiNode.UniqueName;
+                    break;
+
                 case CrmTreeNodeType.ServiceEndpoint:
                     {
                         CrmServiceEndpoint serviceEndpoint = (CrmServiceEndpoint)node;
@@ -1958,6 +2022,7 @@ namespace Xrm.Sdk.PluginRegistration
                     case CrmTreeNodeType.Assembly:
                     case CrmTreeNodeType.Message:
                     case CrmTreeNodeType.MessageEntity:
+                    case CrmTreeNodeType.CustomApi:
 
                         pluginId = Guid.Empty;
                         break;
@@ -2009,6 +2074,11 @@ namespace Xrm.Sdk.PluginRegistration
 
         private void toolUnregister_Click(object sender, EventArgs e)
         {
+            if (trvPlugins.SelectedNode is CrmCustomApiNode api)
+            {
+                DeleteCustomApi(api);
+                return;
+            }
             if (trvPlugins.SelectedNode == null)
             {
                 return;
@@ -2063,6 +2133,11 @@ namespace Xrm.Sdk.PluginRegistration
 
         private void toolUpdate_Click(object sender, EventArgs e)
         {
+            if (trvPlugins.SelectedNode is CrmCustomApiNode api)
+            {
+                OpenCustomApiEditor(api.Id);
+                return;
+            }
             if (trvPlugins.SelectedNode == null)
             {
                 return;
@@ -2232,7 +2307,14 @@ namespace Xrm.Sdk.PluginRegistration
                         var stepId = e.Node.NodeId;
                         if (null != m_stepParentList && m_stepParentList.ContainsKey(stepId))
                         {
-                            CrmTreeNode node = (CrmTreeNode)trvPlugins[m_stepParentList[stepId]];
+                            var parent = trvPlugins[m_stepParentList[stepId]];
+                            if (parent is CrmCustomApiNode apiNode)
+                            {
+                                apiNode.RemoveStep(stepId);
+                                m_stepParentList.Remove(stepId);
+                                break;
+                            }
+                            CrmTreeNode node = (CrmTreeNode)parent;
                             node.RemoveChild(stepId);
                             m_stepParentList.Remove(stepId);
 
@@ -2274,6 +2356,12 @@ namespace Xrm.Sdk.PluginRegistration
 
         private void tsmiAddToSolution_Click(object sender, EventArgs e)
         {
+            if (trvPlugins.SelectedNode is CrmCustomApiNode api)
+            {
+                AddCustomApiToSolution(api);
+                return;
+            }
+
             bool isForAssembly = false;
             Guid componentId = Guid.Empty;
             int componentType = -1;

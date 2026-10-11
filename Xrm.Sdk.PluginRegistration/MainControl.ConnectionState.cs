@@ -22,6 +22,7 @@ namespace Xrm.Sdk.PluginRegistration
             m_rootNodeList = null;
             m_stepParentList = null;
             m_viewNodeList = null;
+            ResetCustomApiState();
             trvPlugins.LoadNodes(new List<Controls.ICrmTreeNode>());
             propGridEntity.SelectedObject = null;
             grvData.DataSource = null;

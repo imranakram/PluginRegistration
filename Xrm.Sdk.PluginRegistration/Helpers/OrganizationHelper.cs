@@ -334,6 +334,58 @@ namespace Xrm.Sdk.PluginRegistration.Helpers
         //    return LoadMessages(org, null);
         //}
         /// <summary>
+        /// Adds registration messages for known Custom APIs, including private APIs omitted
+        /// by the general message query. Dataverse's filters still decide whether steps are allowed.
+        /// </summary>
+        public static void LoadCustomApiStepMessages(CrmOrganization org, IReadOnlyList<Models.CustomApiSummary> apis)
+        {
+            if (org == null) throw new ArgumentNullException(nameof(org));
+            if (apis == null) throw new ArgumentNullException(nameof(apis));
+
+            var missingIds = apis.Where(api => api.SdkMessageId.HasValue && api.SdkMessageId.Value != Guid.Empty)
+                .Select(api => api.SdkMessageId.Value).Distinct().Where(id => !org.Messages.ContainsKey(id)).ToArray();
+            var messages = new Dictionary<Guid, CrmMessage>();
+            var filters = new List<CrmMessageEntity>();
+            for (int offset = 0; offset < missingIds.Length; offset += 500)
+            {
+                var ids = missingIds.Skip(offset).Take(500).ToArray();
+                var filterQuery = new QueryExpression(SdkMessageFilter.EntityLogicalName)
+                {
+                    ColumnSet = GetColumnSet(SdkMessageFilter.EntityLogicalName)
+                };
+                filterQuery.Criteria.AddCondition("sdkmessageid", ConditionOperator.In, ids.Cast<object>().ToArray());
+                filterQuery.Criteria.AddCondition("iscustomprocessingstepallowed", ConditionOperator.Equal, true);
+                // Private APIs are deliberately discoverable in this editor. Limit the visibility
+                // exception to their known message IDs; never expose other hidden platform messages.
+                var batchFilters = org.OrganizationService.RetrieveMultipleAllPages(filterQuery).Entities
+                    .Select(entity => new CrmMessageEntity(org, Magic.CastTo<SdkMessageFilter>(entity)))
+                    .ToList();
+                if (batchFilters.Count == 0) continue;
+
+                var messageQuery = new QueryExpression(SdkMessage.EntityLogicalName)
+                {
+                    ColumnSet = GetColumnSet(SdkMessage.EntityLogicalName)
+                };
+                messageQuery.Criteria.AddCondition("sdkmessageid", ConditionOperator.In,
+                    batchFilters.Select(filter => filter.MessageId).Distinct().Cast<object>().ToArray());
+                foreach (var entity in org.OrganizationService.RetrieveMultipleAllPages(messageQuery).Entities)
+                {
+                    var message = new CrmMessage(org, Magic.CastTo<SdkMessage>(entity));
+                    messages[message.MessageId] = message;
+                }
+                filters.AddRange(batchFilters);
+            }
+
+            // Finish all reads before changing the organization so a failed query cannot leave
+            // a partially populated set of Custom API choices in the ordinary step editor.
+            foreach (var message in messages.Values) org.AddMessage(message);
+            foreach (var filter in filters)
+            {
+                if (messages.TryGetValue(filter.MessageId, out var message)) message.AddMessageEntity(filter);
+            }
+        }
+
+        /// <summary>
         /// Retrieve the Message entities for the organization from the server on every call.
         /// </summary>
         /// <param name="org">Organization to be used</param>
