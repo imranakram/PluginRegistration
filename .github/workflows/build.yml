@@ -4,10 +4,13 @@ name: CI Build
 # (same scheme as the old ADO "PRT-CI" builds). The package of a successful master run is what
 # release.yml publishes, so the released binaries are exactly the ones built and tested here.
 
+# Pushes build only on master: a change on its way there is built by its pull request,
+# against the merge result. Building the branch push as well ran the same build twice and
+# used up a version number each time. Build any branch by hand with workflow_dispatch.
 on:
   push:
     branches:
-      - '**'
+      - master
   pull_request:
     branches:
       - master

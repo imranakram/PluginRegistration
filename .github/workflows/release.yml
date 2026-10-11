@@ -41,7 +41,9 @@ jobs:
           Write-Host "Run $($run.id): $($run.path) on $($run.head_branch) ($($run.event)), $($run.conclusion), commit $($run.head_sha)"
 
           if ($run.path -ne '.github/workflows/build.yml') { throw "Run $env:RUN_ID is not a CI Build run" }
-          if ($run.head_branch -ne 'master' -or $run.event -ne 'push') { throw "Only CI Build runs from a push to master can be released" }
+          if ($run.head_branch -ne 'master' -or $run.event -notin 'push', 'workflow_dispatch') {
+            throw "Only CI Build runs on master can be released (got $($run.event) on $($run.head_branch))"
+          }
           if ($run.conclusion -ne 'success') { throw "Run $env:RUN_ID did not succeed" }
           "SHA=$($run.head_sha)" >> $env:GITHUB_OUTPUT
 
