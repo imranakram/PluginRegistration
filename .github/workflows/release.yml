@@ -19,9 +19,12 @@ concurrency:
   group: release
   cancel-in-progress: false
 
+# id-token: write lets the job request a GitHub OIDC token, which nuget.org exchanges for a
+# one-hour API key through Trusted Publishing (policy: imranakram/PluginRegistration, release.yml)
 permissions:
   contents: write
   actions: read
+  id-token: write
 
 jobs:
   release:
@@ -111,13 +114,20 @@ jobs:
         if: inputs.publish_nuget
         uses: NuGet/setup-nuget@v2
 
+      # Requested right before the push: the temporary key is only valid for an hour
+      - name: NuGet login (Trusted Publishing)
+        if: inputs.publish_nuget
+        id: nuget-login
+        uses: NuGet/login@v1
+        with:
+          user: ${{ secrets.NUGET_USER }}
+
       - name: Publish to NuGet.org
         if: inputs.publish_nuget
         shell: pwsh
         env:
-          NUGET_API_KEY: ${{ secrets.NUGET_API_KEY }}
+          NUGET_API_KEY: ${{ steps.nuget-login.outputs.NUGET_API_KEY }}
         run: |
-          if (-not $env:NUGET_API_KEY) { throw "The NUGET_API_KEY repository secret is not set" }
           nuget push nupkg\*.nupkg -ApiKey $env:NUGET_API_KEY -Source https://api.nuget.org/v3/index.json -SkipDuplicate -NonInteractive
           if ($LASTEXITCODE -ne 0) { throw "nuget push failed with exit code $LASTEXITCODE" }
 
