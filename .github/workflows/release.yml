@@ -29,6 +29,10 @@ permissions:
 jobs:
   release:
     runs-on: windows-latest
+    # The "release" environment only allows master, and the nuget.org Trusted Publishing policy
+    # is bound to it: workflow_dispatch can run this file from any branch, so without it a
+    # modified copy on an unmerged branch could still obtain a NuGet key.
+    environment: release
 
     steps:
       - name: Verify CI run
