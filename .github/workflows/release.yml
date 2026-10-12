@@ -57,12 +57,13 @@ jobs:
           fetch-depth: 0
 
       # GitHub generates notes since the previous GitHub release, which here is years old;
-      # start from the latest PRT-* (or old PRT-CI-*) tag before this commit instead
+      # start from the latest PRT-* (or old PRT-CI-*) tag before this commit instead.
+      # Searched from the parent, so a tag on this same commit (e.g. from the ADO build) is skipped.
       - name: Find previous release tag
         id: previous
         shell: pwsh
         run: |
-          $tag = git describe --tags --abbrev=0 --match "PRT-*" "${{ steps.run.outputs.SHA }}" 2>$null
+          $tag = git describe --tags --abbrev=0 --match "PRT-*" "${{ steps.run.outputs.SHA }}^" 2>$null
           if ($LASTEXITCODE -ne 0) { $tag = ''; $global:LASTEXITCODE = 0 }
           "TAG=$tag" >> $env:GITHUB_OUTPUT
           Write-Host "Previous release tag: $tag"
