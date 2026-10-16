@@ -44,11 +44,13 @@ jobs:
           $earlier = 0
           if ($created -gt $from) {
             $earlier = [int](gh api "$runs`?created=$($from.ToString($fmt))..$($created.AddSeconds(-1).ToString($fmt))&per_page=1" --jq .total_count)
+            # A failed call yields '' which [int] turns into 0, so check each call
+            if ($LASTEXITCODE -ne 0) { throw "Unable to count the runs of this month" }
           }
           $second = $created.ToString($fmt)
           $same = [int](gh api "$runs`?created=$second..$second&per_page=100" --jq "[.workflow_runs[] | select(.id <= $env:GITHUB_RUN_ID)] | length")
-          $rev = $earlier + $same
           if ($LASTEXITCODE -ne 0 -or $same -lt 1) { throw "Unable to count the runs of this month" }
+          $rev = $earlier + $same
 
           # Assembly/file version and tag use 3.2026.04.001, NuGet normalizes it to 3.2026.4.1
           $display = '3.{0}.{1:00}.{2:000}' -f $created.Year, $created.Month, $rev
