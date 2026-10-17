@@ -349,8 +349,6 @@
     <Content Include="bin\Debug\System.Runtime.CompilerServices.Unsafe.xml" />
     <Content Include="bin\Debug\System.Security.Cryptography.Cng.dll" />
     <Content Include="bin\Debug\System.Security.Cryptography.Cng.xml" />
-    <Content Include="bin\Debug\System.Security.Cryptography.Pkcs.dll" />
-    <Content Include="bin\Debug\System.Security.Cryptography.Pkcs.xml" />
     <Content Include="bin\Debug\System.Security.Cryptography.ProtectedData.dll" />
     <Content Include="bin\Debug\System.Text.Encodings.Web.dll" />
     <Content Include="bin\Debug\System.Text.Encodings.Web.xml" />
@@ -557,9 +555,6 @@
     </PackageReference>
     <PackageReference Include="System.Security.Cryptography.Cng">
       <Version>5.0.0</Version>
-    </PackageReference>
-    <PackageReference Include="System.Security.Cryptography.Pkcs">
-      <Version>8.0.0</Version>
     </PackageReference>
     <PackageReference Include="System.Security.Cryptography.ProtectedData">
       <Version>8.0.0</Version>
