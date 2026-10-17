@@ -26,6 +26,7 @@ namespace Xrm.Sdk.PluginRegistration.Helpers
     using Microsoft.Xrm.Sdk.Metadata;
     using Microsoft.Xrm.Sdk.Query;
     using System;
+    using System.Collections.Concurrent;
     using System.Collections.Generic;
     using System.Data;
     using System.Linq;
@@ -43,8 +44,7 @@ namespace Xrm.Sdk.PluginRegistration.Helpers
 
         #region Private Fields
 
-        private static Dictionary<string, ColumnSet> m_entityColumns = new Dictionary<string, ColumnSet>();
-        private static volatile List<CrmMessage> m_messageList = new List<CrmMessage>();
+        private static readonly ConcurrentDictionary<string, ColumnSet> m_entityColumns = new ConcurrentDictionary<string, ColumnSet>();
 
         #endregion Private Fields
 
@@ -319,25 +319,12 @@ namespace Xrm.Sdk.PluginRegistration.Helpers
 
         public static CrmEntityDictionary<CrmMessage> LoadMessages(CrmOrganization org)
         {
-            lock (m_messageList)
+            if (org == null)
             {
-                if (m_messageList.Count == 0)
-                {
-                    m_messageList = OrganizationHelper.LoadMessages(org, null);
-                }
-
-                var messageList = new Dictionary<Guid, CrmMessage>();
-                foreach (CrmMessage msg in m_messageList)
-                {
-                    CrmMessage newMessage = new CrmMessage(null, msg.MessageId, msg.Name,
-                        msg.SupportsFilteredAttributes, msg.CustomizationLevel, msg.CreatedOn, msg.ModifiedOn,
-                        msg.ImageMessagePropertyNames);
-
-                    messageList.Add(newMessage.MessageId, newMessage);
-                }
-
-                return new CrmEntityDictionary<CrmMessage>(messageList);
+                throw new ArgumentNullException("org");
             }
+
+            return new CrmEntityDictionary<CrmMessage>(LoadMessages(org, null).ToDictionary(message => message.MessageId));
         }
 
         ///// <summary>
@@ -349,7 +336,59 @@ namespace Xrm.Sdk.PluginRegistration.Helpers
         //    return LoadMessages(org, null);
         //}
         /// <summary>
-        /// Retrieve the Message entities for the organization. This will be the same for each deployment and organization.
+        /// Adds registration messages for known Custom APIs, including private APIs omitted
+        /// by the general message query. Dataverse's filters still decide whether steps are allowed.
+        /// </summary>
+        public static void LoadCustomApiStepMessages(CrmOrganization org, IReadOnlyList<Models.CustomApiSummary> apis)
+        {
+            if (org == null) throw new ArgumentNullException(nameof(org));
+            if (apis == null) throw new ArgumentNullException(nameof(apis));
+
+            var missingIds = apis.Where(api => api.SdkMessageId.HasValue && api.SdkMessageId.Value != Guid.Empty)
+                .Select(api => api.SdkMessageId.Value).Distinct().Where(id => !org.Messages.ContainsKey(id)).ToArray();
+            var messages = new Dictionary<Guid, CrmMessage>();
+            var filters = new List<CrmMessageEntity>();
+            for (int offset = 0; offset < missingIds.Length; offset += 500)
+            {
+                var ids = missingIds.Skip(offset).Take(500).ToArray();
+                var filterQuery = new QueryExpression(SdkMessageFilter.EntityLogicalName)
+                {
+                    ColumnSet = GetColumnSet(SdkMessageFilter.EntityLogicalName)
+                };
+                filterQuery.Criteria.AddCondition("sdkmessageid", ConditionOperator.In, ids.Cast<object>().ToArray());
+                filterQuery.Criteria.AddCondition("iscustomprocessingstepallowed", ConditionOperator.Equal, true);
+                // Private APIs are deliberately discoverable in this editor. Limit the visibility
+                // exception to their known message IDs; never expose other hidden platform messages.
+                var batchFilters = org.OrganizationService.RetrieveMultipleAllPages(filterQuery).Entities
+                    .Select(entity => new CrmMessageEntity(org, Magic.CastTo<SdkMessageFilter>(entity)))
+                    .ToList();
+                if (batchFilters.Count == 0) continue;
+
+                var messageQuery = new QueryExpression(SdkMessage.EntityLogicalName)
+                {
+                    ColumnSet = GetColumnSet(SdkMessage.EntityLogicalName)
+                };
+                messageQuery.Criteria.AddCondition("sdkmessageid", ConditionOperator.In,
+                    batchFilters.Select(filter => filter.MessageId).Distinct().Cast<object>().ToArray());
+                foreach (var entity in org.OrganizationService.RetrieveMultipleAllPages(messageQuery).Entities)
+                {
+                    var message = new CrmMessage(org, Magic.CastTo<SdkMessage>(entity));
+                    messages[message.MessageId] = message;
+                }
+                filters.AddRange(batchFilters);
+            }
+
+            // Finish all reads before changing the organization so a failed query cannot leave
+            // a partially populated set of Custom API choices in the ordinary step editor.
+            foreach (var message in messages.Values) org.AddMessage(message);
+            foreach (var filter in filters)
+            {
+                if (messages.TryGetValue(filter.MessageId, out var message)) message.AddMessageEntity(filter);
+            }
+        }
+
+        /// <summary>
+        /// Retrieve the Message entities for the organization from the server on every call.
         /// </summary>
         /// <param name="org">Organization to be used</param>
         /// <param name="prog">ProgressIndicator that will show the progress as the object is loaded</param>
@@ -688,23 +727,6 @@ namespace Xrm.Sdk.PluginRegistration.Helpers
 
             var assemblyRetrievedFromDatabase = Magic.CastTo<PluginAssembly>(org.OrganizationService.Retrieve(PluginAssembly.EntityLogicalName, assembly.AssemblyId, GetColumnSet(PluginAssembly.EntityLogicalName)));
             assembly.RefreshFromPluginAssembly(assemblyRetrievedFromDatabase);
-        }
-
-        public static void RefreshConnection(CrmOrganization org, Settings settings, CrmEntityDictionary<CrmMessage> messages)
-        {
-            RefreshConnection(org, settings, messages, null);
-        }
-
-        public static void RefreshConnection(CrmOrganization org, Settings settings, CrmEntityDictionary<CrmMessage> messages, ProgressIndicator prog)
-        {
-            if (org == null)
-            {
-                throw new ArgumentNullException("org");
-            }
-
-            org.Connected = false;
-
-            OpenConnection(org, settings, messages, prog);
         }
 
         public static void RefreshImage(CrmOrganization org, CrmPluginImage image, CrmPluginStep step)
@@ -1089,7 +1111,7 @@ namespace Xrm.Sdk.PluginRegistration.Helpers
                         throw new NotImplementedException(entityName.ToString());
                 }
 
-                m_entityColumns.Add(entityName, cols);
+                m_entityColumns.TryAdd(entityName, cols);
             }
 
             return m_entityColumns[entityName];
@@ -1410,17 +1432,6 @@ namespace Xrm.Sdk.PluginRegistration.Helpers
             {
                 //Create the CrmUser object
                 org.Users.Add(user.UserId, user);
-            }
-        }
-
-        /// <summary>
-        /// Clears all messages from the message cache.
-        /// </summary>
-        public static void ClearMessageCache()
-        {
-            lock (m_messageList)
-            {
-                m_messageList.Clear();
             }
         }
 
