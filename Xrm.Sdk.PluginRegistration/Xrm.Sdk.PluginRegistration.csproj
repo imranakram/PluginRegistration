@@ -237,6 +237,7 @@
     <Compile Include="MainControl.Designer.cs">
       <DependentUpon>MainControl.cs</DependentUpon>
     </Compile>
+    <Compile Include="MainControl.ConnectionState.cs" />
     <Compile Include="Helpers\OrganizationHelper.cs" />
     <Compile Include="Forms\PluginRegistrationForm.cs">
       <SubType>Form</SubType>
