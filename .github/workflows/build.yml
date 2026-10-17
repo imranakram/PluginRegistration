@@ -34,13 +34,23 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          # Count runs created from the start of the month up to this run's own creation time,
-          # so concurrent runs cannot end up with the same number
+          # This run's position among the month's runs: all runs created in earlier seconds, plus
+          # those created in the same second with an ID up to this one's (created_at only has
+          # one-second resolution). Overlapping runs therefore never share a number.
+          $runs = "repos/$env:GITHUB_REPOSITORY/actions/workflows/build.yml/runs"
           $created = [DateTime]::Parse((gh api "repos/$env:GITHUB_REPOSITORY/actions/runs/$env:GITHUB_RUN_ID" --jq .created_at)).ToUniversalTime()
           $from = [DateTime]::new($created.Year, $created.Month, 1, 0, 0, 0, [DateTimeKind]::Utc)
-          $range = '{0:yyyy-MM-ddTHH:mm:ssZ}..{1:yyyy-MM-ddTHH:mm:ssZ}' -f $from, $created
-          $rev = [int](gh api "repos/$env:GITHUB_REPOSITORY/actions/workflows/build.yml/runs?created=$range&per_page=1" --jq .total_count)
-          if ($LASTEXITCODE -ne 0 -or $rev -lt 1) { throw "Unable to count the runs of this month" }
+          $fmt = 'yyyy-MM-ddTHH:mm:ssZ'
+          $earlier = 0
+          if ($created -gt $from) {
+            $earlier = [int](gh api "$runs`?created=$($from.ToString($fmt))..$($created.AddSeconds(-1).ToString($fmt))&per_page=1" --jq .total_count)
+            # A failed call yields '' which [int] turns into 0, so check each call
+            if ($LASTEXITCODE -ne 0) { throw "Unable to count the runs of this month" }
+          }
+          $second = $created.ToString($fmt)
+          $same = [int](gh api "$runs`?created=$second..$second&per_page=100" --jq "[.workflow_runs[] | select(.id <= $env:GITHUB_RUN_ID)] | length")
+          if ($LASTEXITCODE -ne 0 -or $same -lt 1) { throw "Unable to count the runs of this month" }
+          $rev = $earlier + $same
 
           # Assembly/file version and tag use 3.2026.04.001, NuGet normalizes it to 3.2026.4.1
           $display = '3.{0}.{1:00}.{2:000}' -f $created.Year, $created.Month, $rev
