@@ -1,0 +1,5 @@
+{
+  "connection": "AuthType=ClientSecret;Url=https://<org>.crm<n>.dynamics.com;ClientId=<application id>;ClientSecret=<secret value>",
+  "publisher": "AutoDeployTest",
+  "prefix": "adt"
+}

@@ -186,3 +186,6 @@ UpgradeLog*.htm
 FakesAssemblies/
 **/.vs
 /tmp
+
+# Local test bench connection (contains secrets)
+testbench.local.json

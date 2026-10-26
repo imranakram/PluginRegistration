@@ -58,12 +58,15 @@
     <Compile Include="Connections\ConnectionStateTests.cs" />
     <Compile Include="Connections\OrganizationMessageLoadingTests.cs" />
     <Compile Include="RecordingOrganizationService.cs" />
+    <Compile Include="Integration\RegistrationLifecycleTests.cs" />
+    <Compile Include="Integration\TestBench.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
   </ItemGroup>
   <ItemGroup>
     <None Include="app.config">
       <SubType>Designer</SubType>
     </None>
+    <None Include="testbench.example.json" />
   </ItemGroup>
   <ItemGroup>
     <Service Include="{82A7F48D-3B50-4B1E-B82E-3ADA8210C358}" />
@@ -73,10 +76,17 @@
       <Project>{2e450060-2ac3-40a5-b6e5-2fd642886e18}</Project>
       <Name>Xrm.Sdk.PluginRegistration</Name>
     </ProjectReference>
+    <ProjectReference Include="..\Xrm.Sdk.PluginRegistration.TestPlugins\Xrm.Sdk.PluginRegistration.TestPlugins.csproj">
+      <Project>{4f079fcd-7b0f-4534-af02-06a6d9aa8eac}</Project>
+      <Name>Xrm.Sdk.PluginRegistration.TestPlugins</Name>
+    </ProjectReference>
   </ItemGroup>
   <ItemGroup>
     <PackageReference Include="Microsoft.CrmSdk.CoreAssemblies">
       <Version>9.0.2.60</Version>
+    </PackageReference>
+    <PackageReference Include="Microsoft.CrmSdk.XrmTooling.CoreAssembly">
+      <Version>9.1.1.65</Version>
     </PackageReference>
     <PackageReference Include="Microsoft.IdentityModel">
       <Version>7.0.0</Version>
