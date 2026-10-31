@@ -58,6 +58,7 @@
     <Compile Include="Connections\ConnectionStateTests.cs" />
     <Compile Include="Connections\OrganizationMessageLoadingTests.cs" />
     <Compile Include="RecordingOrganizationService.cs" />
+    <Compile Include="Integration\CustomApiLifecycleTests.cs" />
     <Compile Include="Integration\RegistrationLifecycleTests.cs" />
     <Compile Include="Integration\TestBench.cs" />
     <Compile Include="CustomApis\CustomApiServiceTests.cs" />

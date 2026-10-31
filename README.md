@@ -27,9 +27,9 @@ This is special flavor of classical Plugin Registration Tool provided by Microso
 
 ##### Running the tests
 
-The unit tests run without any setup. The integration tests (category `Integration`) register a test plug-in assembly in a real Dataverse environment through the tool's own registration code. They create steps, an image and a webhook, check that each one loads back and runs, and then unregister everything again. Use a developer or trial environment, never production.
+The unit tests run without any setup. The integration tests (category `Integration`) register a test plug-in assembly in a real Dataverse environment through the tool's own registration code. They create steps, an image, a webhook and a Custom API with a plug-in handler, check that each one loads back and runs, and then unregister everything again. Use a developer or trial environment, never production.
 
-1. Copy `Xrm.Sdk.PluginRegistration.Tests\testbench.example.json` to `testbench.local.json` in the same folder and fill in a client-secret connection string. That file is gitignored. You can also set `PRT_TESTBENCH` (the path to such a file) or `PRT_TESTBENCH_CONNECTION` (the connection string itself).
+1. Copy `Xrm.Sdk.PluginRegistration.Tests\testbench.example.json` to `testbench.local.json` in the same folder and fill in a client-secret connection string. That file is gitignored. You can also set `PRT_TESTBENCH` (the path to such a file) or `PRT_TESTBENCH_CONNECTION` (the connection string itself). The Custom API tests create temporary solutions under the `publisher` in the file (its unique name, or `PRT_TESTBENCH_PUBLISHER`), or under the default solution's publisher when that is not set or not found.
 2. Build the solution and run the tests from Test Explorer, or with `vstest.console.exe Xrm.Sdk.PluginRegistration.Tests.dll /TestCaseFilter:"TestCategory=Integration"`.
 
 Without a configuration the integration tests are skipped, so CI only runs the unit tests.

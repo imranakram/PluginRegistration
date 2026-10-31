@@ -13,7 +13,8 @@ namespace Xrm.Sdk.PluginRegistration.Tests.Integration
     /// - a testbench.local.json next to testbench.example.json (never commit it: it holds a secret),
     /// - PRT_TESTBENCH: the path to such a file, or
     /// - PRT_TESTBENCH_CONNECTION: the connection string itself (for CI secrets).
-    /// Without any of these the integration tests are skipped.
+    /// Without any of these the integration tests are skipped. The optional "publisher" in the file,
+    /// or PRT_TESTBENCH_PUBLISHER, is the unique name of the publisher for the solutions the tests create.
     /// </summary>
     internal sealed class TestBench
     {
@@ -21,18 +22,25 @@ namespace Xrm.Sdk.PluginRegistration.Tests.Integration
 
         private const string ConnectionVariable = "PRT_TESTBENCH_CONNECTION";
         private const string FileVariable = "PRT_TESTBENCH";
+        private const string PublisherVariable = "PRT_TESTBENCH_PUBLISHER";
         private const string FileName = "testbench.local.json";
 
         private readonly string connectionString;
         private CrmServiceClient client;
         private ConnectionDetail detail;
 
-        private TestBench(string connectionString)
+        private TestBench(string connectionString, string publisher)
         {
             this.connectionString = connectionString;
+            Publisher = publisher;
         }
 
         public CrmServiceClient Service => client;
+
+        /// <summary>
+        /// The configured publisher's unique name, or null when none is configured.
+        /// </summary>
+        public string Publisher { get; }
 
         /// <summary>
         /// Loads the configuration, or calls Assert.Ignore when there is none.
@@ -40,6 +48,7 @@ namespace Xrm.Sdk.PluginRegistration.Tests.Integration
         public static TestBench LoadOrIgnore()
         {
             var connection = Environment.GetEnvironmentVariable(ConnectionVariable);
+            var publisher = Environment.GetEnvironmentVariable(PublisherVariable);
             if (string.IsNullOrWhiteSpace(connection))
             {
                 var path = Environment.GetEnvironmentVariable(FileVariable);
@@ -56,10 +65,14 @@ namespace Xrm.Sdk.PluginRegistration.Tests.Integration
                 using (var json = JsonDocument.Parse(File.ReadAllText(path)))
                 {
                     connection = json.RootElement.GetProperty("connection").GetString();
+                    if (string.IsNullOrWhiteSpace(publisher) && json.RootElement.TryGetProperty("publisher", out var configured))
+                    {
+                        publisher = configured.GetString();
+                    }
                 }
             }
 
-            return new TestBench(connection);
+            return new TestBench(connection, string.IsNullOrWhiteSpace(publisher) ? null : publisher);
         }
 
         /// <summary>
