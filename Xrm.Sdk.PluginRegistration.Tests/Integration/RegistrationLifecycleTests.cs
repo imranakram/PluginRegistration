@@ -84,7 +84,7 @@ namespace Xrm.Sdk.PluginRegistration.Tests.Integration
             assembly.ServerFileName = null;
             Assert.That(assembly.Plugins.Values.Select(p => p.TypeName), Is.EquivalentTo(new[]
             {
-                typeof(StampPlugin).FullName, typeof(NoOpPlugin).FullName, typeof(NoOpActivity).FullName,
+                typeof(StampPlugin).FullName, typeof(NoOpPlugin).FullName, typeof(EchoApiPlugin).FullName, typeof(NoOpActivity).FullName,
             }));
 
             assemblyId = RegistrationHelper.RegisterAssembly(org, path, assembly);
@@ -102,6 +102,7 @@ namespace Xrm.Sdk.PluginRegistration.Tests.Integration
             {
                 [typeof(StampPlugin).FullName] = CrmPluginType.Plugin,
                 [typeof(NoOpPlugin).FullName] = CrmPluginType.Plugin,
+                [typeof(EchoApiPlugin).FullName] = CrmPluginType.Plugin,
                 [typeof(NoOpActivity).FullName] = CrmPluginType.WorkflowActivity,
             }));
         }
@@ -207,7 +208,7 @@ namespace Xrm.Sdk.PluginRegistration.Tests.Integration
             Assert.That(modifiedAfter, Is.GreaterThan(modifiedBefore));
 
             Reload();
-            Assert.That(org[assemblyId].Plugins.Count, Is.EqualTo(3), "Updating the content must keep the registered types");
+            Assert.That(org[assemblyId].Plugins.Count, Is.EqualTo(4), "Updating the content must keep the registered types");
         }
 
         [Test, Order(8)]
