@@ -250,7 +250,10 @@ namespace Xrm.Sdk.PluginRegistration.Helpers
             ValidateLength(name, 100, label + " name", errors);
             ValidateLength(uniqueName, 128, label + " unique name", errors);
             ValidateLength(displayName, 100, label + " display name", errors);
-            if (!string.IsNullOrWhiteSpace(uniqueName) && !Identifier.IsMatch(uniqueName))
+            // Dataverse accepts characters such as '.' and '-' that the editor does not offer. A saved
+            // unique name cannot change, so rejecting it here would make the whole record uneditable;
+            // a changed one is reported as an immutable field instead.
+            if (!saved && !string.IsNullOrWhiteSpace(uniqueName) && !Identifier.IsMatch(uniqueName))
             {
                 errors.Add(label + " unique name must start with a letter or underscore and contain only letters, digits, and underscores.");
             }
