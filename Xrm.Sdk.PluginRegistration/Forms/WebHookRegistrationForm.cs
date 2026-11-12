@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Linq;
 using System.Net.Http;
 using System.Windows.Forms;
 using Newtonsoft.Json;
@@ -35,7 +36,18 @@ namespace Xrm.Sdk.PluginRegistration.Forms
             {
                 cmbAuth.SelectedItem = CrmServiceEndpointAuthType.HttpHeader.ToString();
             }
+
+            UpdateAuthHint();
         }
+
+        private CrmServiceEndpointAuthType SelectedAuthType =>
+            (CrmServiceEndpointAuthType)Enum.Parse(typeof(CrmServiceEndpointAuthType), cmbAuth.SelectedItem.ToString(), true);
+
+        /// <summary>
+        /// Dataverse never returns the saved values, so the dialog can't show them. When editing
+        /// with the same authentication type, empty values keep the saved ones.
+        /// </summary>
+        private bool CanKeepSavedValues => m_webhook != null && SelectedAuthType == m_webhook.AuthType;
 
         private void btnCancel_Click(object sender, EventArgs e)
         {
@@ -62,11 +74,42 @@ namespace Xrm.Sdk.PluginRegistration.Forms
 
                 txtValue.Text = string.Empty;
             }
+
+            UpdateAuthHint();
+        }
+
+        private void UpdateAuthHint()
+        {
+            lblAuthHint.Visible = m_webhook != null;
+            lblAuthHint.Text = CanKeepSavedValues
+                ? "Saved values aren't shown, because Dataverse doesn't return them. Leave empty to keep them, or enter all values to replace them."
+                : "Enter the values for the new authentication type.";
+            toolTip1.SetToolTip(lblAuthHint, lblAuthHint.Text);
         }
 
         private void btnSave_Click(object sender, EventArgs e)
         {
-            var errorMsgs = new List<string>();
+            var webhook = BuildWebhook(out var errorMsgs);
+            if (webhook != null)
+            {
+                UpsertWebhook(webhook);
+            }
+            else
+            {
+                MessageBox.Show(string.Join(Environment.NewLine, errorMsgs),
+                    "Invalid configuration",
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Warning);
+            }
+        }
+
+        /// <summary>
+        /// Validates the dialog and builds the webhook to save, or returns null with the errors.
+        /// AuthValue is null when the saved values are kept.
+        /// </summary>
+        private CrmServiceEndpoint BuildWebhook(out List<string> errorMsgs)
+        {
+            errorMsgs = new List<string>();
 
             if (txtName.Text == string.Empty)
             {
@@ -86,44 +129,55 @@ namespace Xrm.Sdk.PluginRegistration.Forms
                 }
             }
 
-            var authValue = GenerateAuthValue();
-
-            if (errorMsgs.Count == 0 && authValue == string.Empty)
+            string authValue;
+            if (SelectedAuthType == CrmServiceEndpointAuthType.WebhookKey)
             {
-                errorMsgs.Add("Auth Value is required.");
-            }
-
-            if (errorMsgs.Count == 0)
-            {
-                UpsertWebhook();
+                authValue = txtValue.Text.Trim();
             }
             else
             {
-                MessageBox.Show(string.Join(Environment.NewLine, errorMsgs),
-                    "Invalid configuration",
-                    MessageBoxButtons.OK,
-                    MessageBoxIcon.Warning);
+                var rows = KeyValueRows();
+                errorMsgs.AddRange(WebhookAuthValue.Validate(rows));
+                authValue = WebhookAuthValue.BuildSettings(rows);
             }
 
-        }
+            if (authValue.Length == 0)
+            {
+                authValue = null;
+                if (errorMsgs.Count == 0 && !CanKeepSavedValues)
+                {
+                    errorMsgs.Add("Auth Value is required.");
+                }
+            }
 
-        private void UpsertWebhook()
-        {
-            var authValue = GenerateAuthValue();
+            if (errorMsgs.Count != 0)
+            {
+                return null;
+            }
 
-            var webhook = new CrmServiceEndpoint(m_org)
+            return new CrmServiceEndpoint(m_org)
             {
                 Url = txtEndpointUrl.Text,
                 Name = txtName.Text,
-                AuthType = (CrmServiceEndpointAuthType)Enum.Parse(typeof(CrmServiceEndpointAuthType),
-                    cmbAuth.SelectedItem.ToString(), true),
+                AuthType = SelectedAuthType,
                 ServiceEndpointId = m_webhook?.ServiceEndpointId ?? Guid.Empty,
                 AuthValue = authValue,
                 ConnectionMode = CrmServiceEndpointConnectionMode.Normal,
                 Contract = CrmServiceEndpointContract.Webhook,
                 UserClaim = CrmServiceEndpointUserClaim.None
             };
+        }
 
+        private List<KeyValuePair<string, string>> KeyValueRows()
+        {
+            return dgvKeyValue.Rows.Cast<DataGridViewRow>()
+                .Where(row => !row.IsNewRow)
+                .Select(row => new KeyValuePair<string, string>(row.Cells[0].Value?.ToString(), row.Cells[1].Value?.ToString()))
+                .ToList();
+        }
+
+        private void UpsertWebhook(CrmServiceEndpoint webhook)
+        {
             Close();
 
             var isNew = webhook.ServiceEndpointId == Guid.Empty;
@@ -155,28 +209,6 @@ namespace Xrm.Sdk.PluginRegistration.Forms
             });
         }
 
-        private string GenerateAuthValue()
-        {
-            return txtValue.Text != string.Empty ? txtValue.Text : GenerateKeyValueXml();
-        }
-
-        private string GenerateKeyValueXml()
-        {
-            var settingStrings = string.Empty;
-
-            foreach (DataGridViewRow row in dgvKeyValue.Rows)
-            {
-                var key = row.Cells[0].Value?.ToString();
-                var value = row.Cells[1].Value?.ToString();
-
-                if (key == null && value == null) { continue; }
-
-                settingStrings += $"<setting name='{key}' value='{value}' />";
-            }
-
-            return settingStrings != string.Empty ? $@"<settings>{settingStrings}</settings>" : string.Empty;
-        }
-
         private void btnGenerateWebhookSite_Click(object sender, EventArgs e)
         {
             var baseUrl = "https://webhook.site";
@@ -192,7 +224,7 @@ namespace Xrm.Sdk.PluginRegistration.Forms
             Clipboard.SetText(webhookMonitorUrl);
 
             txtEndpointUrl.Text = $"{baseUrl}/{webhookId}";
-            cmbAuth.SelectedIndex = 1;
+            cmbAuth.SelectedItem = CrmServiceEndpointAuthType.WebhookKey.ToString();
             txtValue.Text = "123";
             txtName.Text = string.IsNullOrEmpty(txtName.Text) 
                 ? $"Webhook.site: {webhookMonitorUrl}"

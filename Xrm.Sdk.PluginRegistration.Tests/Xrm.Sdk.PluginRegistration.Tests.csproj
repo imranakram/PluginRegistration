@@ -71,6 +71,7 @@
     <Compile Include="ManagedIdentities\ManagedIdentityTests.cs" />
     <Compile Include="Progress\ProgressFeedbackTests.cs" />
     <Compile Include="Unregister\UnregisterTests.cs" />
+    <Compile Include="Webhooks\WebhookTests.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
   </ItemGroup>
   <ItemGroup>

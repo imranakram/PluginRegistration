@@ -272,8 +272,13 @@ namespace Xrm.Sdk.PluginRegistration.Tests.Integration
             {
                 Url = "https://example.invalid/prt-integration-test",
                 Name = WebhookName,
-                AuthType = CrmServiceEndpointAuthType.WebhookKey,
-                AuthValue = "test-key",
+                // Issue #100: values with characters that must be escaped in the settings XML
+                AuthType = CrmServiceEndpointAuthType.HttpHeader,
+                AuthValue = WebhookAuthValue.BuildSettings(new[]
+                {
+                    new KeyValuePair<string, string>("x-prt-plain", "hello"),
+                    new KeyValuePair<string, string>("x-prt-special", "a & b 'quoted' <x>"),
+                }),
                 ConnectionMode = CrmServiceEndpointConnectionMode.Normal,
                 Contract = CrmServiceEndpointContract.Webhook,
                 UserClaim = CrmServiceEndpointUserClaim.None,
@@ -283,8 +288,12 @@ namespace Xrm.Sdk.PluginRegistration.Tests.Integration
             Reload();
             webhook = org.Webhooks[webhookId];
             Assert.That(webhook.Url, Is.EqualTo("https://example.invalid/prt-integration-test"));
+            Assert.That(webhook.AuthType, Is.EqualTo(CrmServiceEndpointAuthType.HttpHeader));
+            Assert.That(webhook.AuthValue, Is.Null, "Dataverse never returns the saved values");
 
+            // As editing does when the values are left empty: authvalue is not sent, so it is kept
             webhook.Url = "https://example.invalid/prt-integration-test/updated";
+            Assert.That(((PluginRegistration.Entities.ServiceEndpoint)webhook.GenerateCrmEntities()["serviceendpoint"]).Attributes.ContainsKey("authvalue"), Is.False);
             RegistrationHelper.UpdatewebHook(org, webhook);
 
             // A step on a webhook has no assembly, and the webhook as its handler
