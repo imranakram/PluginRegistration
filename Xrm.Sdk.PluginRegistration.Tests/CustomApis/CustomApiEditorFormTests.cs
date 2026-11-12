@@ -551,6 +551,49 @@ namespace Xrm.Sdk.PluginRegistration.Tests.CustomApis
             }
         }
 
+        [Test]
+        public void OpeningAnApiSelectsItsHandlersAssembly()
+        {
+            Guid handler = Guid.NewGuid();
+            var service = new RecordingOrganizationService
+            {
+                OnRetrieveMultiple = query => query.EntityName == "plugintype"
+                    ? new EntityCollection(new[] { PluginType(Guid.NewGuid(), "First.Plugin", "First"), PluginType(handler, "Second.Plugin", "Second") })
+                    : new EntityCollection()
+            };
+            var withHandler = SavedApi();
+            withHandler.PluginTypeId = handler;
+            var unavailable = SavedApi();
+            unavailable.PluginTypeId = Guid.NewGuid();
+            var expectations = new[]
+            {
+                (Api: withHandler, Assembly: "Second", Handler: "Second.Plugin", Choices: 2),
+                (Api: unavailable, Assembly: "Unavailable assembly", Handler: "Current handler (" + unavailable.PluginTypeId + ")", Choices: 2),
+                (Api: SavedApi(), Assembly: "(All assemblies)", Handler: "(None)", Choices: 3)
+            };
+            foreach (var expected in expectations)
+            {
+                using (var dialog = new CustomApiEditorForm(service, expected.Api))
+                {
+                    LoadChoices(dialog);
+                    Assert.That(Field<ComboBox>(dialog, "assembly").SelectedItem, Is.EqualTo(expected.Assembly));
+                    var handlers = Field<ComboBox>(dialog, "pluginType");
+                    Assert.That(handlers.GetItemText(handlers.SelectedItem), Is.EqualTo(expected.Handler));
+                    // (None) plus the selected assembly's types, or every type without a filter.
+                    Assert.That(handlers.Items.Count, Is.EqualTo(expected.Choices));
+                    Assert.That(Invoke<CustomApiDefinition>(dialog, "CaptureDraft").PluginTypeId, Is.EqualTo(expected.Api.PluginTypeId));
+                }
+            }
+        }
+
+        private static Entity PluginType(Guid id, string name, string assembly)
+        {
+            return new Entity("plugintype", id)
+            {
+                ["typename"] = name, ["assembly.name"] = new AliasedValue("pluginassembly", "name", assembly)
+            };
+        }
+
         private static CustomApiDefinition SavedApi()
         {
             var definition = new CustomApiDefinition
