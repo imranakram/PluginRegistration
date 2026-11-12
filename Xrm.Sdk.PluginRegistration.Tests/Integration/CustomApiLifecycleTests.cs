@@ -30,6 +30,7 @@ namespace Xrm.Sdk.PluginRegistration.Tests.Integration
         private const string SolutionName = "PrtItCustomApis";
         private const string SecondSolutionName = "PrtItCustomApisCopy";
         private const string SuffixName = "Suffix";
+        private const string LaterName = "Later";
         private const string StepConfig = "step-config";
         private const string Text = "hello";
         private static readonly TimeSpan PropagationTimeout = TimeSpan.FromMinutes(2);
@@ -246,6 +247,81 @@ namespace Xrm.Sdk.PluginRegistration.Tests.Integration
         }
 
         [Test, Order(10)]
+        public void Update_AddingOrReplacingAParameter_KeepsItInTheApisSolution()
+        {
+            RequireApi();
+            var original = apis.Retrieve(echoApiId);
+            var changed = apis.Retrieve(echoApiId);
+            var later = Parameter<CustomApiRequestParameter>(LaterName);
+            later.IsOptional = true;
+            changed.RequestParameters.Add(later);
+            Assert.That(apis.Update(original, changed), Is.True);
+
+            var saved = apis.Retrieve(echoApiId);
+            var parameters = saved.RequestParameters.Cast<CustomApiParameter>().Concat(saved.ResponseProperties).ToList();
+            var components = SolutionComponents(SolutionName);
+            foreach (var parameter in parameters)
+            {
+                TestContext.Progress.WriteLine($"{parameter.UniqueName} is {(components.Contains(parameter.Id) ? "in" : "NOT in")} solution {SolutionName}.");
+            }
+
+            // The API was created in this solution. Parameters saved later (Later, added here, and
+            // Text, replaced by an earlier test) belong to the same contract, so an export of the
+            // solution has to carry them.
+            var missing = parameters.Where(p => !components.Contains(p.Id)).Select(p => p.UniqueName).ToList();
+            Assert.That(missing, Is.Empty, "Parameters saved to an existing API must be in the solution the API is in");
+        }
+
+        [Test, Order(11)]
+        public void ApiNamedOutsideTheEditorsRules_CanStillBeEdited()
+        {
+            // Dataverse accepts '.' and '-' in unique names, which the editor does not offer for new
+            // records. An API created elsewhere with such names must still be editable here.
+            var uniqueName = prefix + NamePart + "Dotted.Name-" + RandomPart();
+            var id = bench.Service.Create(new Entity("customapi")
+            {
+                ["uniquename"] = uniqueName,
+                ["name"] = uniqueName,
+                ["displayname"] = "PRT-IT " + uniqueName,
+                ["description"] = "Created outside the editor.",
+                ["bindingtype"] = new OptionSetValue((int)CustomApiBindingType.Global),
+                ["allowedcustomprocessingsteptype"] = new OptionSetValue((int)CustomApiProcessingStepType.None),
+                ["isfunction"] = false,
+                ["isprivate"] = false,
+            });
+            try
+            {
+                bench.Service.Create(new Entity("customapirequestparameter")
+                {
+                    ["uniquename"] = "Odd.Name-1",
+                    ["name"] = "Odd.Name-1",
+                    ["displayname"] = "Odd name",
+                    ["type"] = new OptionSetValue((int)CustomApiParameterType.String),
+                    ["isoptional"] = true,
+                    ["customapiid"] = new EntityReference("customapi", id),
+                });
+
+                var original = apis.Retrieve(id);
+                Assert.That(original.UniqueName, Is.EqualTo(uniqueName));
+                Assert.That(original.RequestParameters.Single().UniqueName, Is.EqualTo("Odd.Name-1"));
+                Assert.That(CustomApiValidator.Validate(apis.Retrieve(id), original), Is.Empty, "A loaded API must pass the editor's validation unchanged");
+
+                var changed = apis.Retrieve(id);
+                changed.Description = "Edited through the tool.";
+                changed.RequestParameters.Single().DisplayName = "Edited odd name";
+                Assert.That(apis.Update(original, changed), Is.True);
+
+                var saved = apis.Retrieve(id);
+                Assert.That(saved.Description, Is.EqualTo(changed.Description));
+                Assert.That(saved.RequestParameters.Single().DisplayName, Is.EqualTo("Edited odd name"));
+            }
+            finally
+            {
+                apis.Delete(id);
+            }
+        }
+
+        [Test, Order(12)]
         public void MakePrivate_KeepsTheApiListedAndItsStepEditable()
         {
             RequireApi();
@@ -271,7 +347,7 @@ namespace Xrm.Sdk.PluginRegistration.Tests.Integration
             WaitForEcho(ExpectedEcho());
         }
 
-        [Test, Order(11)]
+        [Test, Order(13)]
         public void AddToSolution_AddsTheApiAndItsParameters()
         {
             RequireApi();
@@ -286,7 +362,31 @@ namespace Xrm.Sdk.PluginRegistration.Tests.Integration
             Assert.That(SolutionComponents(SecondSolutionName), Is.SupersetOf(expected));
         }
 
-        [Test, Order(12)]
+        [Test, Order(14)]
+        public void Update_AddingAParameter_JoinsEverySolutionTheApiIsIn()
+        {
+            RequireApi();
+            if (!SolutionComponents(SecondSolutionName).Contains(echoApiId)) Assert.Inconclusive("The API was not added to the second solution by an earlier test.");
+            var original = apis.Retrieve(echoApiId);
+            var changed = apis.Retrieve(echoApiId);
+            var both = Parameter<CustomApiRequestParameter>("Both");
+            both.IsOptional = true;
+            changed.RequestParameters.Add(both);
+            changed.ResponseProperties.Add(Parameter<CustomApiResponseProperty>("BothResult"));
+
+            Assert.That(apis.Update(original, changed), Is.True);
+
+            var saved = apis.Retrieve(echoApiId);
+            var added = new[]
+            {
+                saved.RequestParameters.Single(p => p.UniqueName == "Both").Id,
+                saved.ResponseProperties.Single(p => p.UniqueName == "BothResult").Id,
+            };
+            Assert.That(SolutionComponents(SolutionName), Is.SupersetOf(added));
+            Assert.That(SolutionComponents(SecondSolutionName), Is.SupersetOf(added));
+        }
+
+        [Test, Order(15)]
         public void EntityBoundFunction_RoundTripsThroughTheEditorModel()
         {
             var draft = Definition(prefix + NamePart + "Bound" + RandomPart());
@@ -322,7 +422,7 @@ namespace Xrm.Sdk.PluginRegistration.Tests.Integration
             Assert.That(Exists("customapi", id), Is.False);
         }
 
-        [Test, Order(13)]
+        [Test, Order(16)]
         public void Delete_RemovesTheApiItsParametersAndMessage()
         {
             RequireApi();

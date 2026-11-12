@@ -370,7 +370,7 @@ namespace Xrm.Sdk.PluginRegistration.Tests.CustomApis
         [Test]
         public void UpdateCombinesChildDeletionModificationAndCreationInOneTransaction()
         {
-            var organization = TransactionOrganization();
+            var organization = InSolutions(TransactionOrganization());
             var original = Draft(Guid.NewGuid());
             var deleted = RequestParameter(Guid.NewGuid());
             var modified = ResponseProperty(Guid.NewGuid());
@@ -401,6 +401,116 @@ namespace Xrm.Sdk.PluginRegistration.Tests.CustomApis
         }
 
         [Test]
+        public void UpdateCreatesNewChildrenInTheSolutionTheApiIsIn()
+        {
+            var organization = InSolutions(TransactionOrganization(), "ApiSolution");
+            var original = Draft(Guid.NewGuid());
+            var definition = Draft(original.Id);
+            definition.RequestParameters.Add(RequestParameter());
+            definition.ResponseProperties.Add(ResponseProperty());
+
+            Assert.That(new CustomApiService(organization).Update(original, definition), Is.True);
+
+            // Only unmanaged, visible solutions that hold this API, as the editor offers on creation
+            var lookup = organization.Queries.Single();
+            Assert.That(lookup.EntityName, Is.EqualTo("solution"));
+            Assert.That(lookup.Criteria.Conditions.Select(c => c.AttributeName + "=" + c.Values.Single()),
+                Is.EquivalentTo(new[] { "ismanaged=False", "isvisible=True", "uniquename=Default" }));
+            Assert.That(lookup.Criteria.Conditions.Single(c => c.AttributeName == "uniquename").Operator, Is.EqualTo(ConditionOperator.NotEqual));
+            var link = lookup.LinkEntities.Single();
+            Assert.That(link.LinkToEntityName, Is.EqualTo("solutioncomponent"));
+            Assert.That(link.LinkCriteria.Conditions.Single().AttributeName, Is.EqualTo("objectid"));
+            Assert.That(link.LinkCriteria.Conditions.Single().Values.Single(), Is.EqualTo(original.Id));
+
+            var transaction = (ExecuteTransactionRequest)organization.Requests.Single();
+            var creates = transaction.Requests.Cast<CreateRequest>().ToList();
+            Assert.That(creates.Select(create => create.Target.LogicalName),
+                Is.EqualTo(new[] { "customapirequestparameter", "customapiresponseproperty" }));
+            Assert.That(creates.Select(create => create["SolutionUniqueName"]), Is.All.EqualTo("ApiSolution"));
+            Assert.That(creates.Select(create => create.Target.Id), Is.All.EqualTo(Guid.Empty), "One solution needs no client-assigned ID");
+        }
+
+        [Test]
+        public void UpdateAddsNewChildrenToEveryOtherSolutionInTheSameTransaction()
+        {
+            var organization = InSolutions(TransactionOrganization(), "First", "Second", "Third");
+            var original = Draft(Guid.NewGuid());
+            var definition = Draft(original.Id);
+            definition.RequestParameters.Add(RequestParameter());
+            definition.ResponseProperties.Add(ResponseProperty());
+
+            new CustomApiService(organization).Update(original, definition);
+
+            var transaction = (ExecuteTransactionRequest)organization.Requests.Single();
+            var creates = transaction.Requests.OfType<CreateRequest>().ToList();
+            var adds = transaction.Requests.OfType<Microsoft.Crm.Sdk.Messages.AddSolutionComponentRequest>().ToList();
+            Assert.That(transaction.Requests.Take(2), Is.EqualTo(creates), "Records are created before they are added to further solutions");
+            Assert.That(creates.Select(create => create["SolutionUniqueName"]), Is.All.EqualTo("First"));
+            Assert.That(creates.Select(create => create.Target.Id), Is.Unique.And.None.EqualTo(Guid.Empty));
+            Assert.That(adds.Select(add => add.ComponentId + "|" + add.ComponentType + "|" + add.SolutionUniqueName), Is.EqualTo(new[]
+            {
+                creates[0].Target.Id + "|10002|Second", creates[0].Target.Id + "|10002|Third",
+                creates[1].Target.Id + "|10003|Second", creates[1].Target.Id + "|10003|Third",
+            }));
+            Assert.That(adds.Select(add => add.AddRequiredComponents), Is.All.False);
+            // The draft is not given the IDs, so a failed save can be retried as the same new rows
+            Assert.That(definition.RequestParameters.Single().Id, Is.EqualTo(Guid.Empty));
+            Assert.That(definition.ResponseProperties.Single().Id, Is.EqualTo(Guid.Empty));
+        }
+
+        [Test]
+        public void UpdateLeavesNewChildrenOfAnApiOutsideAnySolutionUnassigned()
+        {
+            var organization = InSolutions(TransactionOrganization());
+            var original = Draft(Guid.NewGuid());
+            var definition = Draft(original.Id);
+            definition.RequestParameters.Add(RequestParameter());
+
+            new CustomApiService(organization).Update(original, definition);
+
+            var create = (CreateRequest)((ExecuteTransactionRequest)organization.Requests.Single()).Requests.Single();
+            Assert.That(create.Parameters.ContainsKey("SolutionUniqueName"), Is.False);
+            Assert.That(create.Target.Id, Is.EqualTo(Guid.Empty));
+        }
+
+        [Test]
+        public void UpdateWithoutNewChildrenDoesNotLookUpSolutions()
+        {
+            // No answer is configured for a query, so one would fail the save.
+            var organization = TransactionOrganization();
+            var original = Draft(Guid.NewGuid());
+            original.RequestParameters.Add(RequestParameter(Guid.NewGuid()));
+            var removed = ResponseProperty(Guid.NewGuid());
+            original.ResponseProperties.Add(removed);
+            var definition = original.Clone();
+            definition.Description = "Edited";
+            definition.RequestParameters.Single().DisplayName = "Edited";
+            definition.ResponseProperties.Clear();
+
+            Assert.That(new CustomApiService(organization).Update(original, definition), Is.True);
+
+            Assert.That(organization.Queries, Is.Empty);
+            Assert.That(((ExecuteTransactionRequest)organization.Requests.Single()).Requests, Has.Count.EqualTo(3));
+        }
+
+        [TestCase(false)]
+        [TestCase(true)]
+        public void SolutionLookupFailureIsKnownToPrecedeTheUpdate(bool transportFailure)
+        {
+            var organization = TransactionOrganization();
+            organization.OnRetrieveMultiple = _ => throw (transportFailure ? (Exception)new TimeoutException("Read timed out") : SdkFault());
+            var original = Draft(Guid.NewGuid());
+            var definition = Draft(original.Id);
+            definition.Description = "Edited";
+            definition.RequestParameters.Add(RequestParameter());
+
+            var error = Assert.Catch(() => new CustomApiService(organization).Update(original, definition));
+
+            Assert.That(CustomApiService.IsSaveOutcomeUnknown(error), Is.False);
+            Assert.That(organization.Requests, Is.Empty, "Nothing may be written when the solutions are unknown");
+        }
+
+        [Test]
         public void CreatePropagatesAnSdkFaultWithoutRetryingOrChangingDraftIds()
         {
             var organization = CreateOrganization();
@@ -418,7 +528,7 @@ namespace Xrm.Sdk.PluginRegistration.Tests.CustomApis
         [Test]
         public void UpdatePropagatesATransactionFaultWithoutRetrying()
         {
-            var organization = new RecordingOrganizationService();
+            var organization = InSolutions(new RecordingOrganizationService());
             var fault = SdkFault();
             organization.OnExecute = request => throw fault;
             var original = Draft(Guid.NewGuid());
@@ -682,6 +792,27 @@ namespace Xrm.Sdk.PluginRegistration.Tests.CustomApis
         private static RecordingOrganizationService TransactionOrganization()
         {
             return new RecordingOrganizationService { OnExecute = request => new ExecuteTransactionResponse() };
+        }
+
+        /// <summary>
+        /// Answers the lookups an update makes before creating a child: the unmanaged solutions
+        /// the API is in and, when there are several, the children's solution component types.
+        /// </summary>
+        private static RecordingOrganizationService InSolutions(RecordingOrganizationService organization, params string[] solutions)
+        {
+            organization.OnRetrieveMultiple = query =>
+            {
+                if (query.EntityName == "solution")
+                    return new EntityCollection(solutions.Select(name => new Entity("solution", Guid.NewGuid()) { ["uniquename"] = name }).ToList());
+                Assert.That(query.EntityName, Is.EqualTo("solutioncomponentdefinition"));
+                return new EntityCollection(query.Criteria.Conditions.Single().Values.Cast<string>()
+                    .Select(table => new Entity(query.EntityName)
+                    {
+                        ["primaryentityname"] = table,
+                        ["solutioncomponenttype"] = table == "customapirequestparameter" ? 10002 : 10003
+                    }).ToList());
+            };
+            return organization;
         }
 
         private static CustomApiDefinition Draft(Guid id = default(Guid))
