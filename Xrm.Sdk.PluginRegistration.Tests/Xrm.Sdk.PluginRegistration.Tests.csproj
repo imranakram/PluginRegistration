@@ -69,6 +69,7 @@
     <Compile Include="CustomApis\OrganizationMessageCacheTests.cs" />
     <Compile Include="CustomApis\CustomApiValidatorTests.cs" />
     <Compile Include="ManagedIdentities\ManagedIdentityTests.cs" />
+    <Compile Include="Progress\ProgressFeedbackTests.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
   </ItemGroup>
   <ItemGroup>

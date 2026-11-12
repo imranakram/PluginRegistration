@@ -34,6 +34,8 @@ UX &amp; stability improvements, bug fixes
 - #175: Refresh (F5) retries a failed load, and a failed refresh keeps the current tree instead of closing the connection
 - #175: Registration commands are disabled while the organization is loading
 - #175: Editing a step whose message isn't available, such as a private message, explains why instead of failing
+- #148: Creating or updating a plug-in package shows a wait cursor and locks the dialog until the upload has finished
+- #15: Unregistering shows a wait cursor, and the progress bar in the XrmToolBox status bar now advances with the work
 
 Security
 - #178: Removed the unused System.Security.Cryptography.Pkcs reference, which had two denial-of-service advisories (GHSA-846f-f764-76mx, GHSA-2fmv-rv2c-59x7)

@@ -66,9 +66,16 @@ namespace Xrm.Sdk.PluginRegistration
 
         public ProgressIndicator(Action<StatusBarMessageEventArgs> action)
         {
+            // Units of work of the current run. Counted here because Step rounds down to 0 for
+            // more than 100 units, which would never move the bar.
+            int total = 0;
+            int done = 0;
+            string text = null;
+            Func<int> percent = () => total <= 0 ? 0 : (int)Math.Floor((decimal)Math.Min(done, total) * 100 / total);
+
             m_init = delegate (int min, int max, int initial)
             {
-                if (min < 0 || max < 0)
+                if (min < 0 || max <= 0)
                 {
                     return;
                 }
@@ -77,17 +84,42 @@ namespace Xrm.Sdk.PluginRegistration
                 Max = 100;
                 Step = (int)Math.Floor((decimal)100 / max);
                 Initial = (int)Math.Round((decimal)initial / max * 100);
+                total = max;
+                done = initial;
+                text = null;
 
                 action(new StatusBarMessageEventArgs(Initial));
             };
 
+            m_increment = delegate (int incrementBy)
+            {
+                if (total <= 0)
+                {
+                    return;
+                }
+
+                // Every caller advances one unit of work at a time
+                done++;
+                action(text == null
+                    ? new StatusBarMessageEventArgs(percent())
+                    : new StatusBarMessageEventArgs(percent(), text));
+            };
+
             m_setText = delegate (string message)
             {
-                action(new StatusBarMessageEventArgs(message));
+                text = string.IsNullOrEmpty(message) ? null : message;
+
+                // During a run, send the progress along so the status bar can show both
+                action(total > 0 && text != null
+                    ? new StatusBarMessageEventArgs(percent(), text)
+                    : new StatusBarMessageEventArgs(message));
             };
 
             m_complete = delegate ()
             {
+                total = 0;
+                done = 0;
+                text = null;
                 action(new StatusBarMessageEventArgs(string.Empty));
             };
         }

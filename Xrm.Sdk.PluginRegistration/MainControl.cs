@@ -2096,19 +2096,24 @@ namespace Xrm.Sdk.PluginRegistration
                 try
                 {
                     var builder = new StringBuilder();
+                    // Progress goes to the XrmToolBox status bar, which is easy to miss
+                    UseWaitCursor = true;
                     foreach (KeyValuePair<string, int> stat in RegistrationHelper.Unregister(m_org, m_progressIndicator, trvPlugins))
                     {
                         builder.AppendLine($"{stat.Value} {stat.Key} Unregistered Successfully");
                     }
 
+                    UseWaitCursor = false;
                     MessageBox.Show(builder.ToString(), "Unregister", MessageBoxButtons.OK, MessageBoxIcon.Information);
                 }
                 catch (Exception ex)
                 {
+                    UseWaitCursor = false;
                     ErrorMessageForm.ShowErrorMessageBox(this, "Unable to unregister this item an error occurred.", "Unregister Error", ex);
                 }
                 finally
                 {
+                    UseWaitCursor = false;
                     if (trvPlugins.HasNode(nodeId))
                     {
                         trvPlugins.RefreshNode(nodeId, true);
