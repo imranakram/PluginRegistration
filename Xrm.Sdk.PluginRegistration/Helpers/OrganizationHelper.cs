@@ -209,7 +209,8 @@ namespace Xrm.Sdk.PluginRegistration.Helpers
                 throw new ArgumentNullException("org");
             }
 
-            var cols = GetColumnSet(PluginAssembly.EntityLogicalName);
+            var cols = GetColumnSetCopy(PluginAssembly.EntityLogicalName);
+            ManagedIdentityHelper.AddLookupColumn(org, cols);
             var filters = CreateAssemblyFilter(settings);
 
             var orgVer = new Version(org.ConnectionDetail.OrganizationVersion);
@@ -587,6 +588,9 @@ namespace Xrm.Sdk.PluginRegistration.Helpers
                 }
                 LoadMessageEntities(org, messages);
 
+                //Managed identities are online only; check once so the loads below know whether to ask for the lookup
+                org.ManagedIdentitySupported = ManagedIdentityHelper.DetectSupport(org);
+
                 //Initialize list of packages
                 if (prog != null)
                 {
@@ -673,7 +677,14 @@ namespace Xrm.Sdk.PluginRegistration.Helpers
                 throw new ArgumentNullException("assembly");
             }
 
-            var assemblyRetrievedFromDatabase = Magic.CastTo<PluginAssembly>(org.OrganizationService.Retrieve(PluginAssembly.EntityLogicalName, assembly.AssemblyId, GetColumnSet(PluginAssembly.EntityLogicalName)));
+            var cols = GetColumnSetCopy(PluginAssembly.EntityLogicalName);
+            ManagedIdentityHelper.AddLookupColumn(org, cols);
+            if (new Version(org.ConnectionDetail.OrganizationVersion) < new Version(9, 2))
+            {
+                cols.Columns.Remove("packageid");
+            }
+
+            var assemblyRetrievedFromDatabase = Magic.CastTo<PluginAssembly>(org.OrganizationService.Retrieve(PluginAssembly.EntityLogicalName, assembly.AssemblyId, cols));
             assembly.RefreshFromPluginAssembly(assemblyRetrievedFromDatabase);
         }
 
@@ -919,6 +930,15 @@ namespace Xrm.Sdk.PluginRegistration.Helpers
             criteria.AddCondition("stage", ConditionOperator.In, "10", "20", "40", "50");
 
             return criteria;
+        }
+
+        /// <summary>
+        /// A copy of the cached columns, for queries that add or remove columns per organization
+        /// (packageid, managedidentityid) without changing the cache shared by every connection.
+        /// </summary>
+        private static ColumnSet GetColumnSetCopy(string entityName)
+        {
+            return new ColumnSet(GetColumnSet(entityName).Columns.ToArray());
         }
 
         /// <summary>
@@ -1184,9 +1204,12 @@ namespace Xrm.Sdk.PluginRegistration.Helpers
                 return;
             }
 
+            var cols = GetColumnSetCopy(PluginPackage.EntityLogicalName);
+            ManagedIdentityHelper.AddLookupColumn(org, cols);
+
             var query = new QueryExpression
             {
-                ColumnSet = GetColumnSet(PluginPackage.EntityLogicalName),
+                ColumnSet = cols,
                 Criteria = CreatePackageFilter(),
                 EntityName = PluginPackage.EntityLogicalName
             };

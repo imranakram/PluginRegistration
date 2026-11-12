@@ -160,7 +160,8 @@ namespace Xrm.Sdk.PluginRegistration
                     "Save",
                     "Filter",
                     "Solutions",
-                    "layers");
+                    "layers",
+                    "ManagedIdentity");
 
                 toolRegister.Image = imageList["Register"];
                 toolView.Image = imageList["View"];
@@ -175,6 +176,9 @@ namespace Xrm.Sdk.PluginRegistration
                 tsmiAddToSolution.Image = toolAddToSolution.Image;
 
                 tsmiCheckActiveLayer.Image = imageList["layers"];
+
+                toolManagedIdentity.Image = imageList["ManagedIdentity"];
+                tsmiManagedIdentity.Image = toolManagedIdentity.Image;
 
                 toolSearch.Image = imageList["Search"];
                 mnuContextNodeSearch.Image = toolSearch.Image;
@@ -1545,6 +1549,9 @@ namespace Xrm.Sdk.PluginRegistration
             toolAddToSolution.Visible = false;
             tsmiAddToSolution.Visible = false;
             tsmiCheckActiveLayer.Visible = false;
+            toolManagedIdentity.Visible = false;
+            tsmiManagedIdentity.Visible = false;
+            ApplyPropertyGridFilter();
             toolStripSeparator3.Visible = false;
 
             toolUpdate.Enabled = false;
@@ -1604,6 +1611,7 @@ namespace Xrm.Sdk.PluginRegistration
                         toolStripSeparator3.Visible = true;
                         toolAddToSolution.Visible = true;
                         btnSave.Enabled = true;
+                        toolManagedIdentity.Visible = tsmiManagedIdentity.Visible = IsManagedIdentitySupported;
                         //Load the data table and display information
                         gridTable = OrganizationHelper.CreateDataTable<CrmPlugin>(CrmPlugin.Columns, assembly.Plugins);
 
@@ -1626,6 +1634,7 @@ namespace Xrm.Sdk.PluginRegistration
                         toolStripSeparator3.Visible = true;
                         toolAddToSolution.Visible = true;
                         btnSave.Enabled = true;
+                        toolManagedIdentity.Visible = tsmiManagedIdentity.Visible = IsManagedIdentitySupported;
                         //Load the data table and display information
                         gridTable = OrganizationHelper.CreateDataTable<CrmPluginAssembly>(CrmPluginAssembly.Columns, package.Assemblies);
 
@@ -2340,6 +2349,117 @@ namespace Xrm.Sdk.PluginRegistration
                         {
                             MessageBox.Show(ParentForm, $@"An error occured while adding component to solution: {evt.Error.Message}", @"Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
                         }
+                    }
+                });
+            }
+        }
+
+        /// <summary>
+        /// Managed identities exist only in Dataverse online; the menu items and grid properties stay hidden otherwise.
+        /// </summary>
+        private bool IsManagedIdentitySupported => m_org != null && m_org.ManagedIdentitySupported;
+
+        private void ApplyPropertyGridFilter()
+        {
+            var showOnlineOnly = IsManagedIdentitySupported;
+            var current = propGridEntity.BrowsableAttributes;
+            var currentlyHidden = current != null && current.Contains(OnlineOnlyAttribute.No);
+            if (currentlyHidden == !showOnlineOnly)
+            {
+                return;
+            }
+
+            propGridEntity.BrowsableAttributes = showOnlineOnly
+                ? new System.ComponentModel.AttributeCollection(System.ComponentModel.BrowsableAttribute.Yes)
+                : new System.ComponentModel.AttributeCollection(System.ComponentModel.BrowsableAttribute.Yes, OnlineOnlyAttribute.No);
+        }
+
+        private void tsmiManagedIdentity_Click(object sender, EventArgs e)
+        {
+            if (!IsManagedIdentitySupported || trvPlugins.SelectedNode == null)
+            {
+                return;
+            }
+
+            // An assembly in a plug-in package uses the identity of its package.
+            CrmPluginPackage package = null;
+            CrmPluginAssembly assembly = null;
+            string description;
+            switch (trvPlugins.SelectedNode.NodeType)
+            {
+                case CrmTreeNodeType.Package:
+                    package = (CrmPluginPackage)trvPlugins.SelectedNode;
+                    description = $"Package: {package.Name}";
+                    break;
+
+                case CrmTreeNodeType.Assembly:
+                    assembly = (CrmPluginAssembly)trvPlugins.SelectedNode;
+                    if (assembly.PackageId != Guid.Empty && m_org.Packages.ContainsKey(assembly.PackageId))
+                    {
+                        package = m_org.Packages[assembly.PackageId];
+                        description = $"Package: {package.Name}{Environment.NewLine}(assembly {assembly.Name} is part of this package, so the identity is set on the package)";
+                    }
+                    else
+                    {
+                        description = $"Assembly: {assembly.Name}";
+                    }
+                    break;
+
+                default:
+                    return;
+            }
+
+            var targetEntity = package != null ? Entities.PluginPackage.EntityLogicalName : Entities.PluginAssembly.EntityLogicalName;
+            var targetId = package?.PackageId ?? assembly.AssemblyId;
+            var targetName = package?.Name ?? assembly.Name;
+            var currentId = package != null ? package.ManagedIdentityId : assembly.ManagedIdentityId;
+
+            using (var dialog = new ManagedIdentityForm(Service, description, $"{targetName} Identity", currentId))
+            {
+                var result = dialog.ShowDialog(ParentForm);
+
+                if (dialog.IdentitiesChanged)
+                {
+                    ManagedIdentityHelper.SyncLoadedComponents(m_org, dialog.Identities, dialog.DeletedIdentityIds);
+                    propGridEntity.Refresh();
+                }
+
+                if (result != DialogResult.OK)
+                {
+                    return;
+                }
+
+                var selected = dialog.SelectedIdentity;
+                var selectedId = selected?.Id;
+                if (selectedId == currentId)
+                {
+                    return;
+                }
+
+                WorkAsync(new WorkAsyncInfo
+                {
+                    Message = selected == null ? $"Removing the managed identity from {targetName}..." : $"Linking {selected} to {targetName}...",
+                    Work = (bw, evt) => ManagedIdentityHelper.Link(Service, targetEntity, targetId, selectedId),
+                    PostWorkCallBack = evt =>
+                    {
+                        if (evt.Error != null)
+                        {
+                            ErrorMessageForm.ShowErrorMessageBox(this,
+                                "Unable to set the managed identity. The assembly or package must be signed with a certificate.",
+                                "Managed Identity", evt.Error);
+                            return;
+                        }
+
+                        if (package != null)
+                        {
+                            package.SetManagedIdentity(selectedId, selected?.Name);
+                        }
+                        else
+                        {
+                            assembly.SetManagedIdentity(selectedId, selected?.Name);
+                        }
+
+                        propGridEntity.Refresh();
                     }
                 });
             }

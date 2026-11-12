@@ -24,6 +24,7 @@ namespace Xrm.Sdk.PluginRegistration.Tests.Integration
     {
         private const string AssemblyName = "Xrm.Sdk.PluginRegistration.TestPlugins";
         private const string ContactPrefix = "PRT-IT ";
+        private const string IdentityName = "PRT-IT identity";
         private const string WebhookName = "PRT-IT webhook";
         private static readonly TimeSpan PropagationTimeout = TimeSpan.FromMinutes(2);
 
@@ -211,6 +212,58 @@ namespace Xrm.Sdk.PluginRegistration.Tests.Integration
         }
 
         [Test, Order(8)]
+        public void ManagedIdentity_CreateLinkUnlinkAndDelete()
+        {
+            RequireAssembly();
+            if (!org.ManagedIdentitySupported)
+            {
+                Assert.Inconclusive("This environment has no managed identities (on-premises, or the table isn't available).");
+            }
+
+            var identity = new Models.ManagedIdentity
+            {
+                Name = IdentityName,
+                ApplicationId = Guid.NewGuid(),
+                TenantId = Guid.NewGuid(),
+            };
+            ManagedIdentityHelper.Create(bench.Service, identity, null);
+            try
+            {
+                var created = ManagedIdentityHelper.RetrieveAll(bench.Service).Single(i => i.Id == identity.Id);
+                Assert.That(created.Version, Is.EqualTo(2));
+                Assert.That(created.SubjectScope, Is.EqualTo(Models.ManagedIdentity.Scope.Environment));
+
+                identity.Name = IdentityName + " (renamed)";
+                ManagedIdentityHelper.Update(bench.Service, identity);
+                Assert.That(ManagedIdentityHelper.Retrieve(bench.Service, identity.Id).Name, Is.EqualTo(identity.Name));
+
+                try
+                {
+                    ManagedIdentityHelper.Link(bench.Service, "pluginassembly", assemblyId, identity.Id);
+                }
+                catch (System.ServiceModel.FaultException<OrganizationServiceFault> ex)
+                {
+                    // Dataverse only links certificate-signed assemblies; the test assembly is strong-name signed only.
+                    Assert.Inconclusive("Dataverse refused to link the test assembly (it isn't certificate-signed): " + ex.Message);
+                }
+
+                Reload();
+                Assert.That(org[assemblyId].ManagedIdentityId, Is.EqualTo(identity.Id), "The link loads back into the tree");
+                Assert.That(org[assemblyId].ManagedIdentityName, Is.EqualTo(identity.Name));
+
+                ManagedIdentityHelper.Link(bench.Service, "pluginassembly", assemblyId, null);
+                Reload();
+                Assert.That(org[assemblyId].ManagedIdentityId, Is.Null);
+            }
+            finally
+            {
+                ManagedIdentityHelper.Delete(bench.Service, identity.Id);
+            }
+
+            Assert.That(Exists("managedidentity", identity.Id), Is.False);
+        }
+
+        [Test, Order(9)]
         public void WebHook_RegisterUpdateAddStepAndUnregister()
         {
             // As WebHookRegistrationForm does. The URL is never called: no account is created.
@@ -253,7 +306,7 @@ namespace Xrm.Sdk.PluginRegistration.Tests.Integration
             Assert.That(Exists("sdkmessageprocessingstep", stepId), Is.False);
         }
 
-        [Test, Order(9)]
+        [Test, Order(10)]
         public void Unregister_Assembly_RemovesItsTypesStepsAndImages()
         {
             RequireAssembly();
@@ -373,6 +426,15 @@ namespace Xrm.Sdk.PluginRegistration.Tests.Integration
                 TestContext.Progress.WriteLine($"Removing {leftovers.Length} leftover registration(s).");
                 RegistrationHelper.Unregister(org, null, leftovers);
                 Reload();
+            }
+
+            if (org.ManagedIdentitySupported)
+            {
+                foreach (var identity in ManagedIdentityHelper.RetrieveAll(bench.Service).Where(i => i.Name != null && i.Name.StartsWith(IdentityName)))
+                {
+                    TestContext.Progress.WriteLine($"Removing leftover managed identity {identity.Name}.");
+                    ManagedIdentityHelper.Delete(bench.Service, identity.Id);
+                }
             }
 
             var contacts = new QueryExpression("contact") { ColumnSet = new ColumnSet(false) };

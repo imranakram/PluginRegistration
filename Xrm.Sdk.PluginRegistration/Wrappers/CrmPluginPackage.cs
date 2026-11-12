@@ -19,6 +19,7 @@ namespace Xrm.Sdk.PluginRegistration.Wrappers
 {
     using Controls;
     using Entities;
+    using Helpers;
     using System;
     using System.Collections.Generic;
     using System.ComponentModel;
@@ -300,6 +301,15 @@ namespace Xrm.Sdk.PluginRegistration.Wrappers
             }
         }
 
+        /// <summary>
+        /// Managed identity linked to this package. Only shown for online organizations.
+        /// </summary>
+        [Category("Managed Identity"), Browsable(true), ReadOnly(true), OnlineOnly(true), DisplayName("Managed Identity")]
+        public string ManagedIdentityName { get; private set; }
+
+        [Category("Managed Identity"), Browsable(true), ReadOnly(true), OnlineOnly(true), DisplayName("Managed Identity Id")]
+        public Guid? ManagedIdentityId { get; private set; }
+
         public Guid SolutionId { get; internal set; }
 
         [XmlIgnore]
@@ -392,6 +402,8 @@ namespace Xrm.Sdk.PluginRegistration.Wrappers
             newPackage.ModifiedOn = ModifiedOn;
             newPackage.Version = Version;
             newPackage.SolutionId = SolutionId;
+            newPackage.ManagedIdentityId = ManagedIdentityId;
+            newPackage.ManagedIdentityName = ManagedIdentityName;
 
             //Create a new plugin list
             var newAssemblyList = new Dictionary<Guid, CrmPluginAssembly>();
@@ -466,6 +478,18 @@ namespace Xrm.Sdk.PluginRegistration.Wrappers
             {
                 SolutionId = package.SolutionId ?? Guid.Empty;
             }
+
+            if (m_org != null && m_org.ManagedIdentitySupported)
+            {
+                var identityId = ManagedIdentityHelper.ReadLookup(package, out var identityName);
+                SetManagedIdentity(identityId, identityName);
+            }
+        }
+
+        public void SetManagedIdentity(Guid? identityId, string identityName)
+        {
+            ManagedIdentityId = identityId;
+            ManagedIdentityName = identityId.HasValue ? identityName : null;
         }
 
         public void RemoveAssembly(Guid assemblyId)
