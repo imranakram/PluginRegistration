@@ -34,6 +34,7 @@
             this.txtEndpointUrl = new System.Windows.Forms.TextBox();
             this.lblEndpointUrl = new System.Windows.Forms.Label();
             this.lblAuth = new System.Windows.Forms.Label();
+            this.lblAuthHint = new System.Windows.Forms.Label();
             this.cmbAuth = new System.Windows.Forms.ComboBox();
             this.lblValue = new System.Windows.Forms.Label();
             this.txtValue = new System.Windows.Forms.TextBox();
@@ -101,6 +102,15 @@
             this.cmbAuth.Size = new System.Drawing.Size(627, 28);
             this.cmbAuth.TabIndex = 5;
             this.cmbAuth.SelectedIndexChanged += new System.EventHandler(this.cmbAuth_SelectedIndexChanged);
+            // 
+            // lblAuthHint
+            // 
+            this.lblAuthHint.AutoEllipsis = true;
+            this.lblAuthHint.Location = new System.Drawing.Point(12, 202);
+            this.lblAuthHint.Name = "lblAuthHint";
+            this.lblAuthHint.Size = new System.Drawing.Size(776, 20);
+            this.lblAuthHint.TabIndex = 12;
+            this.lblAuthHint.Visible = false;
             // 
             // lblValue
             // 
@@ -190,6 +200,7 @@
             this.Controls.Add(this.txtValue);
             this.Controls.Add(this.lblValue);
             this.Controls.Add(this.cmbAuth);
+            this.Controls.Add(this.lblAuthHint);
             this.Controls.Add(this.lblAuth);
             this.Controls.Add(this.txtEndpointUrl);
             this.Controls.Add(this.lblEndpointUrl);
@@ -214,6 +225,7 @@
         private System.Windows.Forms.TextBox txtEndpointUrl;
         private System.Windows.Forms.Label lblEndpointUrl;
         private System.Windows.Forms.Label lblAuth;
+        private System.Windows.Forms.Label lblAuthHint;
         private System.Windows.Forms.ComboBox cmbAuth;
         private System.Windows.Forms.Label lblValue;
         private System.Windows.Forms.TextBox txtValue;

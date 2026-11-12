@@ -437,7 +437,12 @@ namespace Xrm.Sdk.PluginRegistration
             serviceEndPoint.UserClaim = new OptionSetValue((int)UserClaim);
 
             serviceEndPoint.Description = Description;
-            serviceEndPoint.AuthValue = AuthValue;
+            // Dataverse never returns authvalue, so a wrapper loaded from the tree has none. Leave it
+            // out of the request then, so an update keeps the saved value instead of clearing it.
+            if (AuthValue != null)
+            {
+                serviceEndPoint.AuthValue = AuthValue;
+            }
             serviceEndPoint.Name = Name;
             serviceEndPoint.Path = Path;
             serviceEndPoint.SolutionNamespace = SolutionNamespace;
