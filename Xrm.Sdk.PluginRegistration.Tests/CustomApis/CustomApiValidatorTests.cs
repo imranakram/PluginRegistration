@@ -385,6 +385,59 @@ namespace Xrm.Sdk.PluginRegistration.Tests.CustomApis
             Assert.That(CustomApiValidator.Validate(api), Is.Empty);
         }
 
+        [TestCase("sample_Sales.Recalculate", "Odd.Name")]
+        [TestCase("sample_Sales-Recalculate", "Odd-Name")]
+        [TestCase("Unprefixed.Api", "Amount.Total")]
+        public void SavedNamesOutsideTheEditorsRulesDoNotBlockUnrelatedEdits(string apiName, string parameterName)
+        {
+            // Dataverse accepts '.' and '-' in unique names. Unique names cannot change after
+            // creation, so rejecting a saved one would make the whole API uneditable.
+            var saved = NewApi();
+            saved.Id = Guid.NewGuid();
+            saved.UniqueName = apiName;
+            var request = NewRequest(parameterName);
+            request.Id = Guid.NewGuid();
+            saved.RequestParameters.Add(request);
+            var response = NewResponse(parameterName);
+            response.Id = Guid.NewGuid();
+            saved.ResponseProperties.Add(response);
+
+            Assert.That(CustomApiValidator.Validate(saved.Clone(), saved), Is.Empty, "Unchanged");
+
+            var draft = saved.Clone();
+            draft.Description = "Edited description.";
+            draft.RequestParameters[0].DisplayName = "Edited";
+            draft.ResponseProperties[0].Description = "Edited";
+            Assert.That(CustomApiValidator.Validate(draft, saved), Is.Empty, "Unrelated edits");
+        }
+
+        [TestCase("Odd.Name")]
+        [TestCase("Odd-Name")]
+        [TestCase("1stName")]
+        public void NewChildrenOfASavedApiMustStillFollowTheEditorsNameRules(string parameterName)
+        {
+            var saved = NewApi();
+            saved.Id = Guid.NewGuid();
+            var draft = saved.Clone();
+            var added = NewRequest(parameterName);
+            added.IsOptional = true;
+            draft.RequestParameters.Add(added);
+
+            Assert.That(CustomApiValidator.Validate(draft, saved), Has.Exactly(1).Contains("unique name must start with"));
+        }
+
+        [Test]
+        public void ASavedNameOutsideTheRulesStillCannotBeChanged()
+        {
+            var saved = NewApi();
+            saved.Id = Guid.NewGuid();
+            saved.UniqueName = "sample_Sales.Recalculate";
+            var draft = saved.Clone();
+            draft.UniqueName = "sample_SalesRecalculate";
+
+            Assert.That(CustomApiValidator.Validate(draft, saved), Has.Some.Contains("cannot be changed after creation"));
+        }
+
         private static CustomApiDefinition NewApi()
         {
             return new CustomApiDefinition

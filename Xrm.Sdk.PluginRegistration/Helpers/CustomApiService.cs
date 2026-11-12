@@ -145,10 +145,12 @@ namespace Xrm.Sdk.PluginRegistration.Helpers
             Validate(definition, original);
 
             var requests = new OrganizationRequestCollection();
+            var creates = new List<CreateRequest>();
             AddUpdate(requests, CustomApiMapping.Changes(CustomApiMapping.MutableApi(original), CustomApiMapping.MutableApi(definition)));
-            AddChildChanges(requests, original.RequestParameters, definition.RequestParameters, CustomApiMapping.RequestTable, original.Id);
-            AddChildChanges(requests, original.ResponseProperties, definition.ResponseProperties, CustomApiMapping.ResponseTable, original.Id);
+            AddChildChanges(requests, creates, original.RequestParameters, definition.RequestParameters, CustomApiMapping.RequestTable, original.Id);
+            AddChildChanges(requests, creates, original.ResponseProperties, definition.ResponseProperties, CustomApiMapping.ResponseTable, original.Id);
             if (requests.Count == 0) return false;
+            if (creates.Count > 0) KeepNewChildrenInApiSolutions(requests, creates, original.Id);
 
             // ExecuteMultiple commits each request separately. A transaction keeps a failed
             // child edit from leaving a partially updated API signature on the server.
@@ -193,6 +195,61 @@ namespace Xrm.Sdk.PluginRegistration.Helpers
 
             // Keep solution membership atomic if adding any part of the contract fails.
             service.Execute(new ExecuteTransactionRequest { Requests = requests, ReturnResponses = false });
+        }
+
+        /// <summary>
+        /// A child created outside a solution lands only in the default solution, so an export of
+        /// the API's solution would miss part of its contract. Create each new child in the
+        /// unmanaged solutions the API already belongs to, within the caller's transaction.
+        /// </summary>
+        private void KeepNewChildrenInApiSolutions(OrganizationRequestCollection requests, List<CreateRequest> creates, Guid apiId)
+        {
+            string[] solutions;
+            IReadOnlyDictionary<string, int> types = null;
+            try
+            {
+                solutions = RetrieveUnmanagedSolutionsContaining(apiId);
+                if (solutions.Length > 1)
+                    types = GetSolutionComponentTypes(creates.Select(create => create.Target.LogicalName).Distinct().ToArray());
+            }
+            catch (Exception error)
+            {
+                // These reads precede the transaction, so their failure cannot have saved anything.
+                throw new PreSaveException(error.Message, error);
+            }
+            if (solutions.Length == 0) return;
+
+            foreach (var create in creates)
+            {
+                create["SolutionUniqueName"] = solutions[0];
+                if (solutions.Length == 1) continue;
+
+                // A create accepts one solution. The others need the record's ID before it exists.
+                create.Target.Id = Guid.NewGuid();
+                foreach (var solution in solutions.Skip(1))
+                    requests.Add(new AddSolutionComponentRequest
+                    {
+                        AddRequiredComponents = false,
+                        ComponentId = create.Target.Id,
+                        ComponentType = types[create.Target.LogicalName],
+                        SolutionUniqueName = solution
+                    });
+            }
+        }
+
+        private string[] RetrieveUnmanagedSolutionsContaining(Guid apiId)
+        {
+            // The same solutions the editor offers when creating an API: unmanaged, visible, not Default.
+            var query = new QueryExpression("solution") { ColumnSet = new ColumnSet("uniquename") };
+            query.Criteria.AddCondition("ismanaged", ConditionOperator.Equal, false);
+            query.Criteria.AddCondition("isvisible", ConditionOperator.Equal, true);
+            query.Criteria.AddCondition("uniquename", ConditionOperator.NotEqual, "Default");
+            var component = query.AddLink("solutioncomponent", "solutionid", "solutionid");
+            component.LinkCriteria.AddCondition("objectid", ConditionOperator.Equal, apiId);
+            query.AddOrder("uniquename", OrderType.Ascending);
+            return service.RetrieveMultiple(query).Entities
+                .Select(solution => solution.GetAttributeValue<string>("uniquename"))
+                .Where(name => !string.IsNullOrEmpty(name)).Distinct().ToArray();
         }
 
         private IReadOnlyDictionary<string, int> GetSolutionComponentTypes(params string[] tables)
@@ -257,8 +314,8 @@ namespace Xrm.Sdk.PluginRegistration.Helpers
             }
         }
 
-        private static void AddChildChanges<T>(OrganizationRequestCollection requests, IList<T> original, IList<T> updated,
-            string table, Guid apiId) where T : CustomApiParameter
+        private static void AddChildChanges<T>(OrganizationRequestCollection requests, List<CreateRequest> creates,
+            IList<T> original, IList<T> updated, string table, Guid apiId) where T : CustomApiParameter
         {
             var previousById = original.ToDictionary(parameter => parameter.Id);
             var retainedIds = new HashSet<Guid>(updated.Where(parameter => parameter.Id != Guid.Empty).Select(parameter => parameter.Id));
@@ -274,7 +331,9 @@ namespace Xrm.Sdk.PluginRegistration.Helpers
                 {
                     var target = CustomApiMapping.CreateParameter(parameter, table);
                     target["customapiid"] = new EntityReference(CustomApiMapping.ApiTable, apiId);
-                    requests.Add(new CreateRequest { Target = target });
+                    var create = new CreateRequest { Target = target };
+                    requests.Add(create);
+                    creates.Add(create);
                 }
                 else
                 {

@@ -64,6 +64,7 @@
     <Compile Include="CustomApis\CustomApiServiceTests.cs" />
     <Compile Include="CustomApis\CustomApiEditorDataTests.cs" />
     <Compile Include="CustomApis\CustomApiTreeTests.cs" />
+    <Compile Include="CustomApis\CustomApiMainControlTests.cs" />
     <Compile Include="CustomApis\CustomApiEditorFormTests.cs" />
     <Compile Include="CustomApis\OrganizationMessageCacheTests.cs" />
     <Compile Include="CustomApis\CustomApiValidatorTests.cs" />

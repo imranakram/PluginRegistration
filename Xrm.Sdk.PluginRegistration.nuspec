@@ -18,6 +18,13 @@
 		</description>
 		<summary>The Classic Microsoft Dynamics CRM tool, now in the XrmToolBox suite</summary>
 		<releaseNotes>
+New: Custom APIs
+- #173: Register, edit and delete Custom APIs together with their request parameters and response properties, from the Register menu or an API's context menu. Fields that Dataverse fixes after creation are read-only, and managed APIs are protected (thanks @WebbontheWeb)
+- #173: Display by Message lists every Custom API, also those without steps, with the steps on its message beneath it
+- #173: A new API is created in an unmanaged solution that you pick or create, with the publisher prefix applied to its unique name. Parameters added later join the solutions the API is in
+- #173: Add to Solution adds an API with all its parameters and properties in one go
+- #173: Steps can be registered and edited on private Custom APIs
+
 New: managed identities (Dataverse online only)
 - Link a managed identity to a plug-in assembly or package from its context menu or the toolbar, and create, edit or delete identities from the same dialog. New identities use version 2, which Microsoft recommends. Based on Plugin Identity Manager by David Rivard (https://github.com/drivardxrm/Driv.XTB.PluginIdentityManager), with thanks
 - The properties pane shows the linked identity of an assembly or package
