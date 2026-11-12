@@ -10,6 +10,7 @@
 		<icon>icon.png</icon>
 		<readme>docs\README.md</readme>
 		<projectUrl>https://github.com/imranakram/PluginRegistration</projectUrl>
+		<license type="expression">MIT</license>
 		<requireLicenseAcceptance>false</requireLicenseAcceptance>
 		<description>
 			The Classic Microsoft Dynamics CRM tool, now in the XrmToolBox suite.
