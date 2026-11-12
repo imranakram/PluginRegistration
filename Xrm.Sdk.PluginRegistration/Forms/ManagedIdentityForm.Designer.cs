@@ -113,8 +113,9 @@ namespace Xrm.Sdk.PluginRegistration.Forms
             //
             // lblDetails
             //
-            this.lblDetails.Dock = System.Windows.Forms.DockStyle.Fill;
+            this.lblDetails.Location = new System.Drawing.Point(8, 18);
             this.lblDetails.Name = "lblDetails";
+            this.lblDetails.Size = new System.Drawing.Size(440, 64);
             this.lblDetails.Padding = new System.Windows.Forms.Padding(4);
             this.lblDetails.TabIndex = 0;
             //
