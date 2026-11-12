@@ -27,6 +27,7 @@ namespace Xrm.Sdk.PluginRegistration.Forms
         private string content = null;
         private MainControl mainControl;
         private CrmPluginPackage package;
+        private bool isWorking;
 
         #endregion Private Fields
 
@@ -368,11 +369,27 @@ namespace Xrm.Sdk.PluginRegistration.Forms
 
         private void SetWorkingStatus(bool working, bool isUpdate = false)
         {
+            isWorking = working;
             lblProgress.Text = working ? (isUpdate ? "Updating package..." : "Registering package...") : "";
             btnBrowse.Enabled = !working;
             btnImport.Enabled = !working;
             btnClose.Enabled = !working;
             cbbSolution.Enabled = !working;
+            txtPluginPackageFile.Enabled = !working;
+            chkAddToSolution.Enabled = !working;
+            // The upload takes seconds and its progress text is easy to miss
+            UseWaitCursor = working;
+        }
+
+        protected override void OnFormClosing(FormClosingEventArgs e)
+        {
+            // The upload carries on in the background; closing now would leave the tree without its result
+            if (isWorking && e.CloseReason == CloseReason.UserClosing)
+            {
+                e.Cancel = true;
+            }
+
+            base.OnFormClosing(e);
         }
 
         private void txt_TextChanged(object sender, EventArgs e)
