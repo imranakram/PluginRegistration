@@ -5,11 +5,11 @@
 		<version>1.0.0</version>
 		<title>Plugin Registration for XrmToolBox</title>
 		<authors>Microsoft, Alexey, Jonas, Imran and the Power Platform community</authors>
-		<owners>Biznamics AB</owners>
+		<owners>imranakram</owners>
 		<iconUrl>https://user-images.githubusercontent.com/13014005/80118859-41d95f80-8589-11ea-9262-8d18cbccbe0c.png</iconUrl>
 		<icon>icon.png</icon>
 		<readme>docs\README.md</readme>
-		<projectUrl>https://github.com/Biznamics/PluginRegistration</projectUrl>
+		<projectUrl>https://github.com/imranakram/PluginRegistration</projectUrl>
 		<requireLicenseAcceptance>false</requireLicenseAcceptance>
 		<description>
 			The Classic Microsoft Dynamics CRM tool, now in the XrmToolBox suite.
@@ -18,6 +18,10 @@
 		</description>
 		<summary>The Classic Microsoft Dynamics CRM tool, now in the XrmToolBox suite</summary>
 		<releaseNotes>
+New: managed identities (Dataverse online only)
+- Link a managed identity to a plug-in assembly or package from its context menu or the toolbar, and create, edit or delete identities from the same dialog. New identities use version 2, which Microsoft recommends. Based on Plugin Identity Manager by David Rivard (https://github.com/drivardxrm/Driv.XTB.PluginIdentityManager), with thanks
+- The properties pane shows the linked identity of an assembly or package
+
 UX &amp; stability improvements, bug fixes
 - #175: Each connection now shows its own SDK messages. After changing connection, or with the tool open in two tabs, the step editor used to offer the messages of the first environment (thanks @WebbontheWeb)
 - #175: Refresh (F5) retries a failed load, and a failed refresh keeps the current tree instead of closing the connection

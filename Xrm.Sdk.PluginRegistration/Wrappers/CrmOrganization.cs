@@ -425,6 +425,13 @@ namespace Xrm.Sdk.PluginRegistration.Wrappers
             }
         }
 
+        /// <summary>
+        /// True when plug-in assemblies and packages can be linked to a managed identity
+        /// (online organizations that have the managedidentity table).
+        /// </summary>
+        [XmlIgnore]
+        public bool ManagedIdentitySupported { get; internal set; }
+
         [XmlIgnore]
         public CrmEntityDictionary<CrmPluginPackage> Packages
         {

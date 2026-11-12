@@ -73,6 +73,8 @@ namespace Xrm.Sdk.PluginRegistration
             this.toolEnable = new System.Windows.Forms.ToolStripButton();
             this.toolUnregister = new System.Windows.Forms.ToolStripButton();
             this.toolAddToSolution = new System.Windows.Forms.ToolStripButton();
+            this.toolManagedIdentity = new System.Windows.Forms.ToolStripButton();
+            this.tsmiManagedIdentity = new System.Windows.Forms.ToolStripMenuItem();
             this.toolShowDependencies = new System.Windows.Forms.ToolStripButton();
             this.toolEnableAllSteps = new System.Windows.Forms.ToolStripButton();
             this.toolDisableAllSteps = new System.Windows.Forms.ToolStripButton();
@@ -121,6 +123,7 @@ namespace Xrm.Sdk.PluginRegistration
             this.mnuContextNodeUnregister,
             this.toolStripSeparator3,
             this.tsmiAddToSolution,
+            this.tsmiManagedIdentity,
             this.tsmiCheckActiveLayer,
             this.mnuContextNodeShowDependencies,
             this.mnuContextNodeEnableAllSteps,
@@ -206,6 +209,14 @@ namespace Xrm.Sdk.PluginRegistration
             this.tsmiAddToSolution.Size = new System.Drawing.Size(205, 30);
             this.tsmiAddToSolution.Text = "Add to solution";
             this.tsmiAddToSolution.Click += new System.EventHandler(this.tsmiAddToSolution_Click);
+            // 
+            // tsmiManagedIdentity
+            // 
+            this.tsmiManagedIdentity.Name = "tsmiManagedIdentity";
+            this.tsmiManagedIdentity.Size = new System.Drawing.Size(205, 30);
+            this.tsmiManagedIdentity.Text = "Managed Identity...";
+            this.tsmiManagedIdentity.Visible = false;
+            this.tsmiManagedIdentity.Click += new System.EventHandler(this.tsmiManagedIdentity_Click);
             // 
             // tsmiCheckActiveLayer
             // 
@@ -341,6 +352,7 @@ namespace Xrm.Sdk.PluginRegistration
             this.toolEnable,
             this.toolUnregister,
             this.toolAddToSolution,
+            this.toolManagedIdentity,
             this.toolShowDependencies,
             this.toolEnableAllSteps,
             this.toolDisableAllSteps,
@@ -508,6 +520,16 @@ namespace Xrm.Sdk.PluginRegistration
             this.toolAddToSolution.Text = "Add To Solution";
             this.toolAddToSolution.Visible = false;
             this.toolAddToSolution.Click += new System.EventHandler(this.tsmiAddToSolution_Click);
+            // 
+            // toolManagedIdentity
+            // 
+            this.toolManagedIdentity.ImageTransparentColor = System.Drawing.Color.Magenta;
+            this.toolManagedIdentity.Name = "toolManagedIdentity";
+            this.toolManagedIdentity.Size = new System.Drawing.Size(105, 28);
+            this.toolManagedIdentity.Text = "Managed Identity";
+            this.toolManagedIdentity.ToolTipText = "Link a managed identity to the selected assembly or package";
+            this.toolManagedIdentity.Visible = false;
+            this.toolManagedIdentity.Click += new System.EventHandler(this.tsmiManagedIdentity_Click);
             // 
             // toolShowDependencies
             // 
@@ -774,6 +796,8 @@ namespace Xrm.Sdk.PluginRegistration
         private System.Windows.Forms.TableLayoutPanel tableLayoutPanel1;
         private System.Windows.Forms.ToolStripMenuItem tsmiAddToSolution;
         private System.Windows.Forms.ToolStripButton toolAddToSolution;
+        private System.Windows.Forms.ToolStripButton toolManagedIdentity;
+        private System.Windows.Forms.ToolStripMenuItem tsmiManagedIdentity;
         private System.Windows.Forms.ToolStripMenuItem toolViewPackage;
         private System.Windows.Forms.ToolStripMenuItem toolPackageRegister;
         private System.Windows.Forms.ToolStripMenuItem tsmiCheckActiveLayer;

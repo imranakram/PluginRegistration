@@ -147,6 +147,18 @@
     <Compile Include="Forms\ExportTypeSelectionForm.Designer.cs">
       <DependentUpon>ExportTypeSelectionForm.cs</DependentUpon>
     </Compile>
+    <Compile Include="Forms\ManagedIdentityEditForm.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="Forms\ManagedIdentityEditForm.Designer.cs">
+      <DependentUpon>ManagedIdentityEditForm.cs</DependentUpon>
+    </Compile>
+    <Compile Include="Forms\ManagedIdentityForm.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="Forms\ManagedIdentityForm.Designer.cs">
+      <DependentUpon>ManagedIdentityForm.cs</DependentUpon>
+    </Compile>
     <Compile Include="Forms\PackageRegistrationForm.cs">
       <SubType>Form</SubType>
     </Compile>
@@ -166,6 +178,8 @@
       <DependentUpon>WebHookRegistrationForm.cs</DependentUpon>
     </Compile>
     <Compile Include="Helpers\ListViewItemComparer.cs" />
+    <Compile Include="Helpers\ManagedIdentityHelper.cs" />
+    <Compile Include="Models\ManagedIdentity.cs" />
     <Compile Include="Models\Solution.Static.cs" />
     <Compile Include="Models\WebhookSiteResponse.cs" />
     <Compile Include="Plugin.cs" />
@@ -212,6 +226,7 @@
     <Compile Include="Wrappers\CrmPluginStep.cs" />
     <Compile Include="CrmResources.cs" />
     <Compile Include="Wrappers\CrmUser.cs" />
+    <Compile Include="Wrappers\OnlineOnlyAttribute.cs" />
     <Compile Include="Helpers\CrmWebServiceHelper.cs" />
     <Compile Include="Forms\ErrorMessageForm.cs">
       <SubType>Form</SubType>
@@ -275,6 +290,7 @@
   <ItemGroup>
     <None Include="bin\Debug\Xrm.Sdk.PluginRegistration.dll.config" />
     <None Include="Resources\layers.png" />
+    <None Include="Resources\ManagedIdentity.png" />
     <None Include="Resources\Package.png" />
     <None Include="Resources\Solutions.png" />
     <None Include="Resources\FilterActive.png" />
