@@ -70,6 +70,7 @@
     <Compile Include="CustomApis\CustomApiValidatorTests.cs" />
     <Compile Include="ManagedIdentities\ManagedIdentityTests.cs" />
     <Compile Include="Progress\ProgressFeedbackTests.cs" />
+    <Compile Include="Unregister\UnregisterTests.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
   </ItemGroup>
   <ItemGroup>

@@ -36,6 +36,9 @@ UX &amp; stability improvements, bug fixes
 - #175: Editing a step whose message isn't available, such as a private message, explains why instead of failing
 - #148: Creating or updating a plug-in package shows a wait cursor and locks the dialog until the upload has finished
 - #15: Unregistering shows a wait cursor, and the progress bar in the XrmToolBox status bar now advances with the work
+- Unregistering runs in the background behind the XrmToolBox wait box, which shows how far it has got, so XrmToolBox no longer freezes on an assembly with many plug-ins. If a delete fails partway, the tree is reloaded to show what is left
+- An assembly or plug-in that is part of a plug-in package can no longer be unregistered on its own. Dataverse deleted its plug-in types and only then refused to delete the assembly; the tool now refuses before anything is deleted
+- The plug-in package dialog shows the XrmToolBox wait box while it registers or updates a package
 
 Security
 - #178: Removed the unused System.Security.Cryptography.Pkcs reference, which had two denial-of-service advisories (GHSA-846f-f764-76mx, GHSA-2fmv-rv2c-59x7)

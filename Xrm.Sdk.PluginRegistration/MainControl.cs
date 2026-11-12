@@ -1624,6 +1624,11 @@ namespace Xrm.Sdk.PluginRegistration
                 mnuContextNodeUnregister.Enabled = false;
                 toolUnregister.Enabled = false;
                 mnuContextNodeUnregister.Enabled = false;
+
+                // Nothing is selected, e.g. after unregistering: the tree takes the grid's space
+                propGridEntity.SelectedObject = null;
+                grpGrid.Visible = false;
+                splitterDisplay.Height = grpGrid.Bottom - splitterDisplay.Top;
                 return;
             }
             else
@@ -2087,50 +2092,93 @@ namespace Xrm.Sdk.PluginRegistration
             }
 
             var nodeId = trvPlugins.SelectedNode.NodeId;
+            var entity = (ICrmEntity)trvPlugins.SelectedNode;
             if (MessageBox.Show("Are you sure you want to unregister this item?", "Unregister",
-                MessageBoxButtons.YesNo, MessageBoxIcon.Question, MessageBoxDefaultButton.Button2) == DialogResult.Yes)
-            {
-                SetRegistrationControlsEnabled(false);
-                // this.MainForm.EnableToolBar(false);
-
-                try
-                {
-                    var builder = new StringBuilder();
-                    // Progress goes to the XrmToolBox status bar, which is easy to miss
-                    UseWaitCursor = true;
-                    foreach (KeyValuePair<string, int> stat in RegistrationHelper.Unregister(m_org, m_progressIndicator, trvPlugins))
-                    {
-                        builder.AppendLine($"{stat.Value} {stat.Key} Unregistered Successfully");
-                    }
-
-                    UseWaitCursor = false;
-                    MessageBox.Show(builder.ToString(), "Unregister", MessageBoxButtons.OK, MessageBoxIcon.Information);
-                }
-                catch (Exception ex)
-                {
-                    UseWaitCursor = false;
-                    ErrorMessageForm.ShowErrorMessageBox(this, "Unable to unregister this item an error occurred.", "Unregister Error", ex);
-                }
-                finally
-                {
-                    UseWaitCursor = false;
-                    if (trvPlugins.HasNode(nodeId))
-                    {
-                        trvPlugins.RefreshNode(nodeId, true);
-                        SelectItem(trvPlugins.SelectedNode);
-                    }
-
-                    SetRegistrationControlsEnabled(connectionReady);
-                    // this.MainForm.EnableToolBar(true);
-                }
-
-                trvPlugins.Focus();
-            }
-            else
+                MessageBoxButtons.YesNo, MessageBoxIcon.Question, MessageBoxDefaultButton.Button2) != DialogResult.Yes)
             {
                 trvPlugins.Focus();
                 return;
             }
+
+            Unregister(nodeId, entity);
+        }
+
+        /// <summary>
+        /// Unregisters the entity of a tree node, with everything below it. The deletes run in the
+        /// background behind the XrmToolBox wait box; the tree and the cached registrations are
+        /// updated afterwards on the UI thread.
+        /// </summary>
+        private void Unregister(Guid nodeId, ICrmEntity entity)
+        {
+            var organization = m_org;
+            int generation = connectionGeneration;
+            SetRegistrationControlsEnabled(false);
+            WorkAsync(new WorkAsyncInfo
+            {
+                Message = "Unregistering...",
+                Work = (worker, args) =>
+                {
+                    var plan = RegistrationHelper.PlanUnregister(organization, entity);
+                    args.Result = RegistrationHelper.ExecuteUnregister(organization, plan,
+                        progress => worker.ReportProgress(progress.Percent, progress));
+                },
+                ProgressChanged = args =>
+                {
+                    if (generation != connectionGeneration || IsDisposed) return;
+                    var progress = (UnregisterProgress)args.UserState;
+                    SetWorkingMessage(progress.ToString());
+                    SendMessageToStatusBar?.Invoke(this, new StatusBarMessageEventArgs(progress.Percent, progress.Text));
+                },
+                PostWorkCallBack = args =>
+                {
+                    if (generation != connectionGeneration || IsDisposed) return;
+                    SendMessageToStatusBar?.Invoke(this, new StatusBarMessageEventArgs(string.Empty));
+                    bool reload = false;
+                    try
+                    {
+                        if (args.Error is UnregisterRefusedException refused)
+                        {
+                            // Refused before anything was deleted, e.g. an assembly in a plug-in package
+                            MessageBox.Show(this, refused.Message, "Unregister", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                            return;
+                        }
+                        if (args.Error != null)
+                        {
+                            // Failed while listing the records, before anything was deleted
+                            ErrorMessageForm.ShowErrorMessageBox(this, "Unable to unregister this item an error occurred.", "Unregister Error", args.Error);
+                            return;
+                        }
+
+                        var result = (UnregisterResult)args.Result;
+                        RegistrationHelper.ApplyUnregister(organization, result.Deleted);
+                        if (result.Error == null)
+                        {
+                            trvPlugins.RemoveNode(nodeId);
+                            SelectItem(trvPlugins.SelectedNode);
+                            MessageBox.Show(result.Deleted.Summary(), "Unregister", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                            return;
+                        }
+
+                        // Part of it is gone: reload, so the tree shows what is left
+                        reload = result.Deleted.Total > 0;
+                        var message = reload
+                            ? "Unregistering stopped because of an error. Already unregistered:" + Environment.NewLine +
+                              result.Deleted.Summary() + Environment.NewLine + "The tree is reloaded to show what is left."
+                            : "Unable to unregister this item an error occurred.";
+                        ErrorMessageForm.ShowErrorMessageBox(this, message, "Unregister Error", result.Error);
+                    }
+                    finally
+                    {
+                        SetRegistrationControlsEnabled(connectionReady);
+                        trvPlugins.Focus();
+                    }
+
+                    if (reload)
+                    {
+                        RefreshFullTreeView();
+                    }
+                }
+            });
         }
 
         private void toolUpdate_Click(object sender, EventArgs e)

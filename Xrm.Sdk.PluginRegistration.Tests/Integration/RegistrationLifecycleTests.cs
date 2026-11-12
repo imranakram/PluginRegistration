@@ -318,8 +318,26 @@ namespace Xrm.Sdk.PluginRegistration.Tests.Integration
             Assert.That(stepIds, Has.Count.EqualTo(2));
             Assert.That(imageIds, Has.Count.EqualTo(1));
 
-            var stats = RegistrationHelper.Unregister(org, null, assembly);
-            TestContext.Progress.WriteLine("Unregistered: " + string.Join(", ", stats.Select(s => $"{s.Key}={s.Value}")));
+            // The package checks run against Dataverse; a plug-in on its own is only listed, not deleted
+            var pluginPlan = RegistrationHelper.PlanUnregister(org, assembly.Plugins.Values.First());
+            Assert.That(pluginPlan.Plugins, Has.Count.EqualTo(1));
+
+            // As the Unregister command does: list and delete on a background thread, then update the cache
+            var reports = new List<UnregisterProgress>();
+            var watch = Stopwatch.StartNew();
+            var result = System.Threading.Tasks.Task.Run(() =>
+            {
+                var plan = RegistrationHelper.PlanUnregister(org, assembly);
+                return RegistrationHelper.ExecuteUnregister(org, plan, reports.Add);
+            }).GetAwaiter().GetResult();
+            TestContext.Progress.WriteLine($"Unregistered in {watch.Elapsed.TotalSeconds:0.0}s: " + result.Deleted.Summary().Replace(Environment.NewLine, ", "));
+
+            Assert.That(result.Error, Is.Null);
+            Assert.That(result.Deleted.Total, Is.EqualTo(result.Plan.Total));
+            Assert.That(reports.Last().Percent, Is.EqualTo(100));
+            RegistrationHelper.ApplyUnregister(org, result.Deleted);
+            Assert.That(org.Assemblies.ContainsKey(assemblyId), Is.False);
+            Assert.That(pluginIds.Any(org.Plugins.ContainsKey), Is.False);
 
             Assert.That(Exists("pluginassembly", assemblyId), Is.False);
             Assert.That(pluginIds.Any(id => Exists("plugintype", id)), Is.False);

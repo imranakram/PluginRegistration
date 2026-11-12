@@ -12,6 +12,7 @@ using System.Xml;
 using Xrm.Sdk.PluginRegistration.Helpers;
 using Xrm.Sdk.PluginRegistration.Models;
 using Xrm.Sdk.PluginRegistration.Wrappers;
+using XrmToolBox.Extensibility;
 
 namespace Xrm.Sdk.PluginRegistration.Forms
 {
@@ -28,6 +29,8 @@ namespace Xrm.Sdk.PluginRegistration.Forms
         private MainControl mainControl;
         private CrmPluginPackage package;
         private bool isWorking;
+        private Panel waitPanel;
+        private int heightBeforeWaitPanel;
 
         #endregion Private Fields
 
@@ -92,7 +95,8 @@ namespace Xrm.Sdk.PluginRegistration.Forms
             if (!String.IsNullOrEmpty(txtPluginPackageFile.Text))
                 AnalyzePackage();
 
-            Height = Height - 50;
+            // Two rows are hidden; keep some of their space so the wait box fits
+            Height = Height - 30;
         }
 
         #endregion Public Constructors
@@ -315,6 +319,10 @@ namespace Xrm.Sdk.PluginRegistration.Forms
             worker.ProgressChanged += (bw, evt) =>
             {
                 lblProgress.Text = evt.UserState.ToString();
+                if (waitPanel != null)
+                {
+                    InformationPanel.ChangeInformationPanelMessage(waitPanel, lblProgress.Text);
+                }
             };
             worker.RunWorkerAsync();
         }
@@ -377,8 +385,45 @@ namespace Xrm.Sdk.PluginRegistration.Forms
             cbbSolution.Enabled = !working;
             txtPluginPackageFile.Enabled = !working;
             chkAddToSolution.Enabled = !working;
-            // The upload takes seconds and its progress text is easy to miss
+            // The upload takes seconds and its progress text is easy to miss, so show the
+            // XrmToolBox wait box over the dialog, as the tool does for its own long operations
             UseWaitCursor = working;
+            if (working && waitPanel == null)
+            {
+                waitPanel = InformationPanel.GetInformationPanel(this, lblProgress.Text, 340, 150);
+                FitWaitPanel();
+            }
+            else if (!working && waitPanel != null)
+            {
+                Controls.Remove(waitPanel);
+                waitPanel.Dispose();
+                waitPanel = null;
+                if (heightBeforeWaitPanel > 0)
+                {
+                    Height = heightBeforeWaitPanel;
+                    heightBeforeWaitPanel = 0;
+                }
+            }
+        }
+
+        /// <summary>
+        /// XrmToolBox centers the wait box on the whole window, title bar included, which cuts it
+        /// off at the bottom of a short dialog. Grow the dialog while it shows if the box doesn't
+        /// fit, and center the box in the client area.
+        /// </summary>
+        private void FitWaitPanel()
+        {
+            int margin = LogicalToDeviceUnits(12);
+            int missing = waitPanel.Height + 2 * margin - ClientSize.Height;
+            if (missing > 0)
+            {
+                heightBeforeWaitPanel = Height;
+                Height += missing;
+            }
+
+            waitPanel.Location = new System.Drawing.Point(
+                Math.Max(0, (ClientSize.Width - waitPanel.Width) / 2),
+                Math.Max(0, (ClientSize.Height - waitPanel.Height) / 2));
         }
 
         protected override void OnFormClosing(FormClosingEventArgs e)
