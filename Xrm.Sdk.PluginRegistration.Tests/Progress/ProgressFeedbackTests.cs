@@ -102,8 +102,20 @@ namespace Xrm.Sdk.PluginRegistration.Tests.Progress
                 Assert.That(dialog.UseWaitCursor, Is.False);
                 Assert.That(closeIsRefused(), Is.False);
 
+                var waitPanel = type.GetField("waitPanel", flags);
+                Assert.That(waitPanel.GetValue(dialog), Is.Null);
+                // Shorter than the wait box, as the update dialog can be at a high DPI
+                dialog.Height = 180;
+                int heightBefore = dialog.Height;
+
                 setWorking.Invoke(dialog, new object[] { true, false });
 
+                var panel = (Panel)waitPanel.GetValue(dialog);
+                Assert.That(panel, Is.Not.Null, "The wait box shows while it works");
+                Assert.That(dialog.Controls.Contains(panel), Is.True);
+                Assert.That(dialog.ClientRectangle.Contains(panel.Bounds), Is.True, "The wait box is not cut off");
+                Assert.That(panel.Top, Is.EqualTo(dialog.ClientSize.Height - panel.Bottom).Within(1), "The wait box is centered");
+                Assert.That(dialog.Controls.GetChildIndex(panel), Is.EqualTo(0), "The wait box is in front of the fields");
                 Assert.That(dialog.UseWaitCursor, Is.True);
                 Assert.That(locked.Select(control => control.Enabled), Is.All.False);
                 Assert.That(closeIsRefused(), Is.True, "Closing must wait for the upload");
@@ -113,6 +125,10 @@ namespace Xrm.Sdk.PluginRegistration.Tests.Progress
 
                 setWorking.Invoke(dialog, new object[] { false, false });
 
+                Assert.That(waitPanel.GetValue(dialog), Is.Null);
+                Assert.That(dialog.Controls.Contains(panel), Is.False, "The wait box goes away when the work is done");
+                Assert.That(panel.IsDisposed, Is.True);
+                Assert.That(dialog.Height, Is.EqualTo(heightBefore), "The dialog gets its own height back");
                 Assert.That(dialog.UseWaitCursor, Is.False);
                 Assert.That(locked.Select(control => control.Enabled), Is.All.True);
                 Assert.That(closeIsRefused(), Is.False);

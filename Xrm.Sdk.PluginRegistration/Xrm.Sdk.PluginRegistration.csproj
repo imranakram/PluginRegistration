@@ -291,6 +291,7 @@
     </Compile>
     <Compile Include="ProgressIndicator.cs" />
     <Compile Include="Helpers\RegistrationHelper.cs" />
+    <Compile Include="Helpers\Unregistration.cs" />
     <Compile Include="Forms\StepRegistrationForm.cs">
       <SubType>Form</SubType>
     </Compile>
