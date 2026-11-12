@@ -19,6 +19,7 @@ namespace Xrm.Sdk.PluginRegistration.Wrappers
 {
     using Controls;
     using Entities;
+    using Helpers;
     using Microsoft.Xrm.Sdk;
     using System;
     using System.Collections.Generic;
@@ -414,6 +415,15 @@ namespace Xrm.Sdk.PluginRegistration.Wrappers
             }
         }
 
+        /// <summary>
+        /// Managed identity linked to this assembly. Only shown for online organizations.
+        /// </summary>
+        [Category("Managed Identity"), Browsable(true), ReadOnly(true), OnlineOnly(true), DisplayName("Managed Identity")]
+        public string ManagedIdentityName { get; private set; }
+
+        [Category("Managed Identity"), Browsable(true), ReadOnly(true), OnlineOnly(true), DisplayName("Managed Identity Id")]
+        public Guid? ManagedIdentityId { get; private set; }
+
         [Category("Information"), Browsable(true), ReadOnly(true)]
         public string PublicKeyToken { get; set; }
 
@@ -539,6 +549,8 @@ namespace Xrm.Sdk.PluginRegistration.Wrappers
             newAssembly.PublicKeyToken = PublicKeyToken;
             newAssembly.SourceType = SourceType;
             newAssembly.Version = Version;
+            newAssembly.ManagedIdentityId = ManagedIdentityId;
+            newAssembly.ManagedIdentityName = ManagedIdentityName;
 
             //Create a new plugin list
             var newPluginList = new Dictionary<Guid, CrmPlugin>();
@@ -682,6 +694,18 @@ namespace Xrm.Sdk.PluginRegistration.Wrappers
             }
 
             Description = assembly.Description;
+
+            if (m_org != null && m_org.ManagedIdentitySupported)
+            {
+                var identityId = ManagedIdentityHelper.ReadLookup(assembly, out var identityName);
+                SetManagedIdentity(identityId, identityName);
+            }
+        }
+
+        public void SetManagedIdentity(Guid? identityId, string identityName)
+        {
+            ManagedIdentityId = identityId;
+            ManagedIdentityName = identityId.HasValue ? identityName : null;
         }
 
         public void RemovePlugin(Guid pluginId)

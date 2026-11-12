@@ -1,11 +1,11 @@
 # The Classic Microsoft Dynamics CRM Plugin Registration Tool
 ## Now in the XrmToolBox suite
 
-[![Join the chat at https://gitter.im/Innofactor/PluginRegistration](https://badges.gitter.im/Innofactor/PluginRegistration.svg)](https://gitter.im/Innofactor/PluginRegistration?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge)
+Questions, bugs and ideas: [GitHub Issues](https://github.com/imranakram/PluginRegistration/issues)
 
 ##### Project description
 
-![Plugin Registration](https://github.com/Innofactor/PluginRegistration/assets/13014005/edd97502-f897-42ef-b6b8-6f77ac0c9f83)
+![Plugin Registration](https://raw.githubusercontent.com/imranakram/PluginRegistration/master/docs/images/plugin-registration.png)
 
 This is special flavor of classical Plugin Registration Tool provided by Microsoft as CRM SDK code sample. It was adopted to the format of [XrmToolBox](http://www.xrmtoolbox.com/) plugin and itended to work with the same set of the Dynamics CRM versions as supported by main application.
 
@@ -18,6 +18,7 @@ This is special flavor of classical Plugin Registration Tool provided by Microso
 	* Filtering Managed/Unmanaged Assemblies 
 	* Exporting Plugin Assemblies, Steps and image information to Excel
 	* Filtering Attributes etc.
+	* Managed identities for plug-in assemblies and packages (Dataverse online only): create, edit and delete `managedidentity` records and link them from the assembly or package context menu
 
 ##### Project needs
 
