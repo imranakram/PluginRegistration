@@ -28,13 +28,18 @@ namespace Xrm.Sdk.PluginRegistration
 
         private void InitializeCustomApiMenus()
         {
-            foreach (var items in new[] { toolRegister.DropDownItems, mnuContextNode.Items, mnuContextGeneral.Items })
-            {
-                var item = new ToolStripMenuItem("Register New Custom API", toolViewMessage.Image,
-                    (sender, args) => OpenCustomApiEditor(null)) { Enabled = false };
-                items.Add(item);
-                customApiRegisterItems.Add(item);
-            }
+            // Each menu's last "Register New" item, so the API item joins that group.
+            AddCustomApiRegisterItem(toolRegister.DropDownItems, toolWebHookRegister);
+            AddCustomApiRegisterItem(mnuContextNode.Items, mnuContextNodeImageRegister);
+            AddCustomApiRegisterItem(mnuContextGeneral.Items, mnuContextGeneralImageRegister);
+        }
+
+        private void AddCustomApiRegisterItem(ToolStripItemCollection items, ToolStripItem after)
+        {
+            var item = new ToolStripMenuItem("Register New Custom API", toolViewMessage.Image,
+                (sender, args) => OpenCustomApiEditor(null)) { Enabled = false };
+            items.Insert(items.IndexOf(after) + 1, item);
+            customApiRegisterItems.Add(item);
         }
 
         private static CustomApiCatalog ReadCustomApiCatalog(CrmOrganization organization, Action<string> reportProgress, bool? knownSupport = null)
