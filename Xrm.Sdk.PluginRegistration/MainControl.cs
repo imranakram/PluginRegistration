@@ -1609,10 +1609,11 @@ namespace Xrm.Sdk.PluginRegistration
             selected != CrmTreeNodeType.Step && selected != CrmTreeNodeType.Image;
 
         /// <summary>
-        /// Register New Image makes no sense from an image; select its step instead.
+        /// An image belongs to one step, so Register New Image is only offered on a step.
+        /// From anywhere else the dialog couldn't know which step is meant.
         /// </summary>
         public static bool CanRegisterImageFrom(CrmTreeNodeType? selected) =>
-            selected != CrmTreeNodeType.Image;
+            selected == CrmTreeNodeType.Step;
 
         private void SelectItem(ICrmTreeNode node)
         {
