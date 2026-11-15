@@ -28,7 +28,7 @@ namespace Xrm.Sdk.PluginRegistration.Controls
         /// </summary>
         private void InitializeComponent()
         {
-            this.trvPlugins = new System.Windows.Forms.TreeView();
+            this.trvPlugins = new Xrm.Sdk.PluginRegistration.Controls.CheckBoxSafeTreeView();
             this.SuspendLayout();
             // 
             // trvPlugins
@@ -64,7 +64,7 @@ namespace Xrm.Sdk.PluginRegistration.Controls
 
         #endregion
 
-        private System.Windows.Forms.TreeView trvPlugins;
+        private Xrm.Sdk.PluginRegistration.Controls.CheckBoxSafeTreeView trvPlugins;
 
     }
 }
