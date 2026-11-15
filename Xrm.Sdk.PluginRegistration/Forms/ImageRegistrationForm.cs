@@ -195,6 +195,10 @@ namespace Xrm.Sdk.PluginRegistration.Forms
             return found;
         }
 
+        public const string CreateImageTypeHint =
+            "Steps on Create can only have a post-image: the record doesn't exist before it's created, " +
+            "so there is nothing for a pre-image to hold.";
+
         /// <summary>
         /// A record has no state before Create, so a post-image is the only image type its steps can have.
         /// </summary>
@@ -401,8 +405,7 @@ namespace Xrm.Sdk.PluginRegistration.Forms
                 btnRegister.Enabled = false;
                 // Reset PreImage checkbox state
                 chkImageTypePre.Enabled = true;
-                _toolTip.SetToolTip(chkImageTypePre, string.Empty);
-                chkImageTypePre.Tag = null;
+                SetImageTypeHint(null);
             }
         }
 
@@ -418,16 +421,24 @@ namespace Xrm.Sdk.PluginRegistration.Forms
                 chkImageTypePre.Enabled = false;
                 // The only valid choice, so it's made for the user
                 chkImageTypePost.Checked = true;
-                //Note: The tooltip just does not show up on disabled controls, leaving it as-is for now.
-                _toolTip.SetToolTip(chkImageTypePre, "Message Create does not support this image type.");
-                chkImageTypePre.Tag = "Message Create does not support this image type.";
+                SetImageTypeHint(CreateImageTypeHint);
             }
             else
             {
                 chkImageTypePre.Enabled = true;
-                _toolTip.SetToolTip(chkImageTypePre, string.Empty);
-                chkImageTypePre.Tag = null;
+                SetImageTypeHint(null);
             }
+        }
+
+        /// <summary>
+        /// Explains the image type choice. Disabled controls show no tooltip of their own, and pass the
+        /// mouse to their parent, so the group carries it for the greyed-out Pre Image box.
+        /// </summary>
+        private void SetImageTypeHint(string hint)
+        {
+            _toolTip.SetToolTip(grpImageType, hint);
+            _toolTip.SetToolTip(chkImageTypePre, hint);
+            _toolTip.SetToolTip(chkImageTypePost, hint);
         }
        
         #endregion Private Methods
