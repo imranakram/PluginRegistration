@@ -1602,6 +1602,36 @@ namespace Xrm.Sdk.PluginRegistration
             }
         }
 
+        /// <summary>
+        /// Register New Step is offered where a step can go: on a plug-in, service endpoint or webhook,
+        /// under a message or Custom API, or with nothing selected. Not on assemblies and packages (they
+        /// hold plug-ins, not steps), workflow activities (they can't have steps), or steps and images.
+        /// </summary>
+        public static bool CanRegisterStepFrom(CrmTreeNodeType? selected)
+        {
+            switch (selected)
+            {
+                case null:
+                case CrmTreeNodeType.Plugin:
+                case CrmTreeNodeType.ServiceEndpoint:
+                case CrmTreeNodeType.WebHook:
+                case CrmTreeNodeType.Message:
+                case CrmTreeNodeType.MessageEntity:
+                case CrmTreeNodeType.CustomApi:
+                    return true;
+
+                default:
+                    return false;
+            }
+        }
+
+        /// <summary>
+        /// An image belongs to one step, so Register New Image is only offered on a step.
+        /// From anywhere else the dialog couldn't know which step is meant.
+        /// </summary>
+        public static bool CanRegisterImageFrom(CrmTreeNodeType? selected) =>
+            selected == CrmTreeNodeType.Step;
+
         private void SelectItem(ICrmTreeNode node)
         {
             //Reset the visibility and enabled properties because we don't what is enabled
@@ -1632,6 +1662,12 @@ namespace Xrm.Sdk.PluginRegistration
             {
                 item.Visible = !isEndpointNode;
             }
+
+            // Menu, toolbar and shortcuts (which check the toolbar item) follow the same rule
+            var canRegisterStep = CanRegisterStepFrom(node?.NodeType);
+            toolStepRegister.Enabled = mnuContextNodeStepRegister.Enabled = mnuContextGeneralStepRegister.Enabled = canRegisterStep;
+            var canRegisterImage = CanRegisterImageFrom(node?.NodeType);
+            toolImageRegister.Enabled = mnuContextNodeImageRegister.Enabled = mnuContextGeneralImageRegister.Enabled = canRegisterImage;
 
             bool isSystemNode = IsNodeSystemItem(trvPlugins.SelectedNode);
             if (node == null)

@@ -132,18 +132,14 @@ namespace Xrm.Sdk.PluginRegistration.Forms
                 crmParameters.ClearAttributes();
                 if (trvPlugins.HasNode(selectNodeId))
                 {
-                    // Opened from a step, or from a node (endpoint, plug-in, assembly...) with a single step under it
-                    step = FindOnlyStep(trvPlugins[selectNodeId]);
-                    if (step != null && trvPlugins.HasNode(step.NodeId))
+                    // Register New Image is only offered on a step, so this is the step to use
+                    step = trvPlugins[selectNodeId] as CrmPluginStep;
+                    if (step != null)
                     {
-                        trvPlugins.SelectedNode = trvPlugins[step.NodeId];
+                        trvPlugins.SelectedNode = step;
                         // Runs the selection logic (Register button, entity, pre-image) even if the tree
                         // has no window yet and so raises no event.
                         trvPlugins_SelectionChanged(trvPlugins, new CrmTreeNodeTreeEventArgs(step, TreeViewAction.Unknown));
-                    }
-                    else
-                    {
-                        step = null;
                     }
                 }
             }
@@ -158,42 +154,15 @@ namespace Xrm.Sdk.PluginRegistration.Forms
 
         #region Public Methods
 
-        /// <summary>
-        /// The step to pre-select: the node itself when it is a step, otherwise the only step found
-        /// beneath it. Null when there are none or more than one, so the user picks.
-        /// </summary>
-        public static CrmPluginStep FindOnlyStep(ICrmTreeNode node)
-        {
-            if (node == null)
-            {
-                return null;
-            }
-            if (node is CrmPluginStep self)
-            {
-                return self;
-            }
+        public const string CreateImageTypeHint =
+            "Steps on Create can only have a post-image: the record doesn't exist before it's created, " +
+            "so there is nothing for a pre-image to hold.";
 
-            CrmPluginStep found = null;
-            var pending = new Stack<ICrmTreeNode>(node.NodeChildren ?? new List<ICrmTreeNode>());
-            while (pending.Count != 0)
-            {
-                var current = pending.Pop();
-                if (current is CrmPluginStep step)
-                {
-                    if (found != null)
-                    {
-                        return null;
-                    }
-                    found = step;
-                    continue; // images under a step aren't steps
-                }
-                foreach (var child in current.NodeChildren ?? new List<ICrmTreeNode>())
-                {
-                    pending.Push(child);
-                }
-            }
-            return found;
-        }
+        /// <summary>
+        /// A record has no state before Create, so a post-image is the only image type its steps can have.
+        /// </summary>
+        public static bool OnlyPostImageAllowed(string messageName) =>
+            string.Equals(messageName, "Create", StringComparison.OrdinalIgnoreCase);
 
         #endregion Public Methods
 
@@ -395,8 +364,7 @@ namespace Xrm.Sdk.PluginRegistration.Forms
                 btnRegister.Enabled = false;
                 // Reset PreImage checkbox state
                 chkImageTypePre.Enabled = true;
-                _toolTip.SetToolTip(chkImageTypePre, string.Empty);
-                chkImageTypePre.Tag = null;
+                SetImageTypeHint(null);
             }
         }
 
@@ -406,20 +374,30 @@ namespace Xrm.Sdk.PluginRegistration.Forms
             if (step == null)
                 return;
             var message = m_org.Messages[step.MessageId];
-            if (string.Equals(message.Name, "Create", StringComparison.OrdinalIgnoreCase))
+            if (OnlyPostImageAllowed(message.Name))
             {
                 chkImageTypePre.Checked = false;
                 chkImageTypePre.Enabled = false;
-                //Note: The tooltip just does not show up on disabled controls, leaving it as-is for now.
-                _toolTip.SetToolTip(chkImageTypePre, "Message Create does not support this image type.");
-                chkImageTypePre.Tag = "Message Create does not support this image type.";
+                // The only valid choice, so it's made for the user
+                chkImageTypePost.Checked = true;
+                SetImageTypeHint(CreateImageTypeHint);
             }
             else
             {
                 chkImageTypePre.Enabled = true;
-                _toolTip.SetToolTip(chkImageTypePre, string.Empty);
-                chkImageTypePre.Tag = null;
+                SetImageTypeHint(null);
             }
+        }
+
+        /// <summary>
+        /// Explains the image type choice. Disabled controls show no tooltip of their own, and pass the
+        /// mouse to their parent, so the group carries it for the greyed-out Pre Image box.
+        /// </summary>
+        private void SetImageTypeHint(string hint)
+        {
+            _toolTip.SetToolTip(grpImageType, hint);
+            _toolTip.SetToolTip(chkImageTypePre, hint);
+            _toolTip.SetToolTip(chkImageTypePost, hint);
         }
        
         #endregion Private Methods

@@ -274,6 +274,9 @@
     <Compile Include="Forms\PluginRegistrationForm.Designer.cs">
       <DependentUpon>PluginRegistrationForm.cs</DependentUpon>
     </Compile>
+    <Compile Include="Controls\CheckBoxSafeTreeView.cs">
+      <SubType>Component</SubType>
+    </Compile>
     <Compile Include="Controls\CrmTreeControl.cs">
       <SubType>UserControl</SubType>
     </Compile>

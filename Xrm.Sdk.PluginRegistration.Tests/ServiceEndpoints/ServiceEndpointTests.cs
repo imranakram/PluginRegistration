@@ -7,7 +7,6 @@ using System.Reflection;
 using System.Runtime.Serialization;
 using System.Threading;
 using System.Windows.Forms;
-using Xrm.Sdk.PluginRegistration.Controls;
 using Xrm.Sdk.PluginRegistration.Entities;
 using Xrm.Sdk.PluginRegistration.Forms;
 using Xrm.Sdk.PluginRegistration.Wrappers;
@@ -379,45 +378,13 @@ namespace Xrm.Sdk.PluginRegistration.Tests.ServiceEndpoints
             }
         }
 
-        [Test]
-        public void TheImageDialogPreselectsTheOnlyStepUnderTheClickedNode()
+        [TestCase("Create", true)]
+        [TestCase("create", true)]
+        [TestCase("Update", false)]
+        [TestCase("Delete", false)]
+        public void OnCreateThePostImageIsTheOnlyChoice(string message, bool onlyPost)
         {
-            var step = new CrmPluginStep(null) { StepId = Guid.NewGuid() };
-            var endpoint = new Node(CrmTreeNodeType.ServiceEndpoint, step);
-            var assembly = new Node(CrmTreeNodeType.Assembly, new Node(CrmTreeNodeType.Plugin), new Node(CrmTreeNodeType.Plugin, step));
-
-            Assert.That(ImageRegistrationForm.FindOnlyStep(endpoint), Is.SameAs(step));
-            Assert.That(ImageRegistrationForm.FindOnlyStep(assembly), Is.SameAs(step), "Steps are found at any depth");
-            Assert.That(ImageRegistrationForm.FindOnlyStep(step), Is.SameAs(step), "Opened from the step itself");
-        }
-
-        [Test]
-        public void TheImageDialogLeavesTheChoiceWhenThereIsNoSingleStep()
-        {
-            var two = new Node(CrmTreeNodeType.ServiceEndpoint,
-                new CrmPluginStep(null) { StepId = Guid.NewGuid() },
-                new CrmPluginStep(null) { StepId = Guid.NewGuid() });
-
-            Assert.That(ImageRegistrationForm.FindOnlyStep(two), Is.Null, "Two steps: the user picks");
-            Assert.That(ImageRegistrationForm.FindOnlyStep(new Node(CrmTreeNodeType.ServiceEndpoint)), Is.Null, "No steps");
-            Assert.That(ImageRegistrationForm.FindOnlyStep(null), Is.Null);
-        }
-
-        private sealed class Node : ICrmTreeNode
-        {
-            public Node(CrmTreeNodeType type, params ICrmTreeNode[] children)
-            {
-                NodeType = type;
-                NodeChildren = children.ToList();
-            }
-
-            public List<ICrmTreeNode> NodeChildren { get; }
-            public Guid NodeId { get; } = Guid.NewGuid();
-            public CrmTreeNodeImageType NodeImageType => CrmTreeNodeImageType.Assembly;
-            public CrmTreeNodeImageType NodeSelectedImageType => CrmTreeNodeImageType.Assembly;
-            public string NodeText => NodeType.ToString();
-            public CrmTreeNodeType NodeType { get; }
-            public string NodeTypeLabel => NodeType.ToString();
+            Assert.That(ImageRegistrationForm.OnlyPostImageAllowed(message), Is.EqualTo(onlyPost));
         }
 
         private static CrmServiceEndpoint SavedTopic() => new CrmServiceEndpoint(null)
