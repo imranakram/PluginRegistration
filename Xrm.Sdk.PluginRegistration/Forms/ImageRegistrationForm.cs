@@ -195,6 +195,12 @@ namespace Xrm.Sdk.PluginRegistration.Forms
             return found;
         }
 
+        /// <summary>
+        /// A record has no state before Create, so a post-image is the only image type its steps can have.
+        /// </summary>
+        public static bool OnlyPostImageAllowed(string messageName) =>
+            string.Equals(messageName, "Create", StringComparison.OrdinalIgnoreCase);
+
         #endregion Public Methods
 
         #region Private Methods
@@ -406,10 +412,12 @@ namespace Xrm.Sdk.PluginRegistration.Forms
             if (step == null)
                 return;
             var message = m_org.Messages[step.MessageId];
-            if (string.Equals(message.Name, "Create", StringComparison.OrdinalIgnoreCase))
+            if (OnlyPostImageAllowed(message.Name))
             {
                 chkImageTypePre.Checked = false;
                 chkImageTypePre.Enabled = false;
+                // The only valid choice, so it's made for the user
+                chkImageTypePost.Checked = true;
                 //Note: The tooltip just does not show up on disabled controls, leaving it as-is for now.
                 _toolTip.SetToolTip(chkImageTypePre, "Message Create does not support this image type.");
                 chkImageTypePre.Tag = "Message Create does not support this image type.";

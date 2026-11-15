@@ -403,6 +403,15 @@ namespace Xrm.Sdk.PluginRegistration.Tests.ServiceEndpoints
             Assert.That(ImageRegistrationForm.FindOnlyStep(null), Is.Null);
         }
 
+        [TestCase("Create", true)]
+        [TestCase("create", true)]
+        [TestCase("Update", false)]
+        [TestCase("Delete", false)]
+        public void OnCreateThePostImageIsTheOnlyChoice(string message, bool onlyPost)
+        {
+            Assert.That(ImageRegistrationForm.OnlyPostImageAllowed(message), Is.EqualTo(onlyPost));
+        }
+
         private sealed class Node : ICrmTreeNode
         {
             public Node(CrmTreeNodeType type, params ICrmTreeNode[] children)
