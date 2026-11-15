@@ -609,7 +609,8 @@ namespace Xrm.Sdk.PluginRegistration.Wrappers
         {
             if (Organization != null)
             {
-                CrmPluginStep step = Organization[AssemblyId][PluginId][StepId];
+                // Steps on webhooks and service endpoints have no assembly, so look the step up directly
+                CrmPluginStep step = Organization.Steps[StepId];
                 return GenerateCrmEntities(step.MessageId, step.MessageEntityId);
             }
             return GenerateCrmEntities(Guid.Empty, Guid.Empty);

@@ -88,7 +88,8 @@ namespace Xrm.Sdk.PluginRegistration
                     CrmTreeNodeImageType.Assembly, CrmTreeNodeImageType.Image,
                     CrmTreeNodeImageType.Message, CrmTreeNodeImageType.MessageEntity,
                     CrmTreeNodeImageType.StepDisabled, CrmTreeNodeImageType.StepEnabled,
-                    CrmTreeNodeImageType.ServiceEndpoint, CrmTreeNodeImageType.Package);
+                    CrmTreeNodeImageType.ServiceEndpoint, CrmTreeNodeImageType.Package,
+                    CrmTreeNodeImageType.WebHook);
 
                 toolServiceEndpointRegister.Image = nodeImageList[CrmTreeNodeImageType.ServiceEndpoint];
 
@@ -111,7 +112,7 @@ namespace Xrm.Sdk.PluginRegistration
                 toolViewMessage.Image = nodeImageList[CrmTreeNodeImageType.Message];
                 toolViewPackage.Image = nodeImageList[CrmTreeNodeImageType.Package];
 
-                toolWebHookRegister.Image = nodeImageList[CrmTreeNodeImageType.ServiceEndpoint];
+                toolWebHookRegister.Image = nodeImageList[CrmTreeNodeImageType.WebHook];
 
                 imlEnableImages.Images.Add("enableStep", nodeImageList[CrmTreeNodeImageType.StepEnabled]);
                 imlEnableImages.Images.Add("disableStep", nodeImageList[CrmTreeNodeImageType.StepDisabled]);
@@ -821,7 +822,7 @@ namespace Xrm.Sdk.PluginRegistration
         private static bool VerifySelectedNode(ICrmTreeNode node)
         {
             return (node == null || node.NodeType == CrmTreeNodeType.Step
-                || node.NodeType == CrmTreeNodeType.Image || node.NodeType == CrmTreeNodeType.ServiceEndpoint
+                || node.NodeType == CrmTreeNodeType.Image
                 || node.NodeType == CrmTreeNodeType.Message || node.NodeType == CrmTreeNodeType.MessageEntity
                 || node.NodeType == CrmTreeNodeType.CustomApi
                 || node.NodeType == CrmTreeNodeType.Connection || node.NodeType == CrmTreeNodeType.None);
@@ -979,7 +980,7 @@ namespace Xrm.Sdk.PluginRegistration
 
             if (VerifySelectedNode(node))
             {
-                MessageBox.Show("Please select an assembly, plugin or workflow activity", "Invalid selection", MessageBoxButtons.OK);
+                MessageBox.Show("Please select an assembly, plugin, workflow activity, webhook or service endpoint", "Invalid selection", MessageBoxButtons.OK);
                 return;
             }
 
@@ -1006,6 +1007,7 @@ namespace Xrm.Sdk.PluginRegistration
                     }
                     break;
                 case CrmTreeNodeType.WebHook:
+                case CrmTreeNodeType.ServiceEndpoint:
                     {
                         model = ForEachWebhookExport((CrmServiceEndpoint)node);
                     }
@@ -1068,6 +1070,11 @@ namespace Xrm.Sdk.PluginRegistration
             foreach (CrmServiceEndpoint webhook in Organization.Webhooks.OrderBy(x => x.Name))
             {
                 model.AddRange(ForEachWebhookExport(webhook));
+            }
+
+            foreach (CrmServiceEndpoint serviceEndpoint in Organization.ServiceEndpoints.OrderBy(x => x.Name))
+            {
+                model.AddRange(ForEachWebhookExport(serviceEndpoint));
             }
 
             if (string.Equals(fileInfo.Extension, ".xlsx", StringComparison.OrdinalIgnoreCase))
@@ -1185,16 +1192,17 @@ namespace Xrm.Sdk.PluginRegistration
                 throw new ArgumentNullException("webhook");
             }
             var model = new List<ExportModel>();
+            var kind = webhook.NodeType == CrmTreeNodeType.WebHook ? "Webhook" : "Service Endpoint";
 
-            // Webhook metadata row
+            // Webhook or service endpoint metadata row
             var webhookInfo = new ExportModel
             {
                 AssemblyName = webhook.Name, // Use AssemblyName for webhook name for consistency
                 TypeName = string.Empty,
-                PluginType = "Webhook",
+                PluginType = kind,
                 Description = webhook.Description,
                 IsolationMode = null, // Webhooks may not have isolation mode
-                SourceType = "Webhook"
+                SourceType = kind
             };
             model.Add(webhookInfo);
 
@@ -1618,6 +1626,13 @@ namespace Xrm.Sdk.PluginRegistration
             toolEnable.Visible = false;
             mnuContextNodeEnable.Visible = false;
 
+            // A Custom API has nothing to do with a webhook or service endpoint, so the node's menu doesn't offer it there
+            var isEndpointNode = node?.NodeType == CrmTreeNodeType.WebHook || node?.NodeType == CrmTreeNodeType.ServiceEndpoint;
+            foreach (var item in customApiRegisterItems.Where(i => i.Owner == mnuContextNode))
+            {
+                item.Visible = !isEndpointNode;
+            }
+
             bool isSystemNode = IsNodeSystemItem(trvPlugins.SelectedNode);
             if (node == null)
             {
@@ -1657,9 +1672,10 @@ namespace Xrm.Sdk.PluginRegistration
                         CrmServiceEndpoint serviceEndpoint = (CrmServiceEndpoint)node;
 
                         toolUpdate.Visible = true;
-                        toolUpdate.Enabled = true;
+                        // Endpoints Dataverse manages itself, such as Managed Data Lake, can't be edited
+                        toolUpdate.Enabled = !serviceEndpoint.IsSystemCrmEntity;
                         mnuContextNodeUpdate.Visible = true;
-                        mnuContextNodeUpdate.Enabled = true;
+                        mnuContextNodeUpdate.Enabled = !serviceEndpoint.IsSystemCrmEntity;
                         btnSave.Enabled = false;
                         //Load the data table and display information
                         gridTable = OrganizationHelper.CreateDataTable<CrmPluginStep>(CrmPluginStep.Columns, serviceEndpoint.Steps);
@@ -2038,16 +2054,28 @@ namespace Xrm.Sdk.PluginRegistration
                     case CrmTreeNodeType.Step:
 
                         pluginId = ((CrmPluginStep)trvPlugins.SelectedNode).PluginId;
+                        serviceEndpointId = ((CrmPluginStep)trvPlugins.SelectedNode).ServiceBusConfigurationId;
                         break;
 
                     case CrmTreeNodeType.Image:
 
                         pluginId = ((CrmPluginImage)trvPlugins.SelectedNode).PluginId;
+                        if (m_org.Steps.TryGetValue(((CrmPluginImage)trvPlugins.SelectedNode).StepId, out var imageStep))
+                        {
+                            serviceEndpointId = imageStep.ServiceBusConfigurationId;
+                        }
                         break;
 
                     case CrmTreeNodeType.ServiceEndpoint:
+                        if (((CrmServiceEndpoint)trvPlugins.SelectedNode).IsSystemCrmEntity)
+                        {
+                            ShowSystemItemError("Steps cannot be registered on this service endpoint.");
+                            return;
+                        }
 
-                        pluginId = ((CrmServiceEndpoint)trvPlugins.SelectedNode).PluginId;
+                        // The step's plug-in is the built-in Service Bus plug-in, which isn't loaded
+                        // into the tree, so only the endpoint is passed on.
+                        pluginId = Guid.Empty;
                         serviceEndpointId = ((CrmServiceEndpoint)trvPlugins.SelectedNode).NodeId;
                         break;
 
@@ -2060,13 +2088,18 @@ namespace Xrm.Sdk.PluginRegistration
                         throw new NotImplementedException($"NodeType = {trvPlugins.SelectedNode.NodeType.ToString()}");
                 }
 
-                if (Guid.Empty != pluginId)
-                {
-                    plugin = m_org.Plugins[pluginId];
-                }
                 if (Guid.Empty != serviceEndpointId)
                 {
-                    serviceEndpoint = pluginId != Guid.Empty ? m_org.ServiceEndpoints[serviceEndpointId] : m_org.Webhooks[serviceEndpointId];
+                    // Steps on endpoints and webhooks have no loaded plug-in to start from.
+                    pluginId = Guid.Empty;
+                    if (!m_org.ServiceEndpoints.TryGetValue(serviceEndpointId, out serviceEndpoint))
+                    {
+                        m_org.Webhooks.TryGetValue(serviceEndpointId, out serviceEndpoint);
+                    }
+                }
+                if (Guid.Empty != pluginId)
+                {
+                    m_org.Plugins.TryGetValue(pluginId, out plugin);
                 }
             }
 
@@ -2242,7 +2275,11 @@ namespace Xrm.Sdk.PluginRegistration
                         switch (step.EventHandler.LogicalName)
                         {
                             case "serviceendpoint":
-                                serviceEndpoint = m_org.Webhooks[step.EventHandler.Id];
+                                // The handler is either a webhook or one of the other service endpoints
+                                if (!m_org.Webhooks.TryGetValue(step.EventHandler.Id, out serviceEndpoint))
+                                {
+                                    serviceEndpoint = m_org.ServiceEndpoints[step.EventHandler.Id];
+                                }
                                 break;
 
                             default:
@@ -2275,6 +2312,21 @@ namespace Xrm.Sdk.PluginRegistration
                     }
                     break;
 
+                case CrmTreeNodeType.ServiceEndpoint:
+                    {
+                        if (((CrmServiceEndpoint)trvPlugins.SelectedNode).IsSystemCrmEntity)
+                        {
+                            ShowSystemItemError("The service endpoint cannot be updated.");
+                            return;
+                        }
+
+                        using (var endpointForm = new ServiceEndpointRegistrationForm(m_org, this, (CrmServiceEndpoint)trvPlugins.SelectedNode))
+                        {
+                            endpointForm.ShowDialog(this);
+                        }
+                    }
+                    break;
+
                 default:
                     throw new NotImplementedException($"NodeType = {trvPlugins.SelectedNode.NodeType.ToString()}");
             }
@@ -2296,6 +2348,14 @@ namespace Xrm.Sdk.PluginRegistration
                     propGridEntity.SelectedObject = null;
                     LoadNodes((CrmViewType)item.Tag);
                 }
+            }
+        }
+
+        private void toolServiceEndpointRegister_Click(object sender, EventArgs e)
+        {
+            using (var endpointForm = new ServiceEndpointRegistrationForm(m_org, this, null))
+            {
+                endpointForm.ShowDialog(this);
             }
         }
 

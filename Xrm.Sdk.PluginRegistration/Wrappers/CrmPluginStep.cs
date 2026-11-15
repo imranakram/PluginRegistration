@@ -703,13 +703,19 @@ namespace Xrm.Sdk.PluginRegistration.Wrappers
 
             sdkStep.Configuration = UnsecureConfiguration;
 
-            if (AssemblyId != Guid.Empty && PluginId != Guid.Empty)
+            // A step loaded for a webhook or service endpoint has the endpoint as AssemblyId and a
+            // plug-in id (the built-in Service Bus plug-in), so the endpoint configuration comes first
+            if (ServiceBusConfigurationId != Guid.Empty)
+            {
+                sdkStep.EventHandler = new EntityReference(ServiceEndpoint.EntityLogicalName, ServiceBusConfigurationId);
+            }
+            else if (AssemblyId != Guid.Empty && PluginId != Guid.Empty)
             {
                 sdkStep.EventHandler = new EntityReference(PluginType.EntityLogicalName, PluginId);
             }
             else
             {
-                sdkStep.EventHandler = new EntityReference(ServiceEndpoint.EntityLogicalName,  ServiceBusConfigurationId == Guid.Empty ? PluginId : ServiceBusConfigurationId);
+                sdkStep.EventHandler = new EntityReference(ServiceEndpoint.EntityLogicalName, PluginId);
             }
 
             sdkStep.Name = Name;

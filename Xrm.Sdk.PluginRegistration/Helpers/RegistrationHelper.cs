@@ -187,11 +187,8 @@ namespace Xrm.Sdk.PluginRegistration.Helpers
                 throw new ArgumentNullException("image");
             }
 
-            if (org.Webhooks.TryGetValue(image.AssemblyId, out CrmServiceEndpoint pluginAssembly))
-            {
-                return RegisterImage(org, image, pluginAssembly.Steps[image.StepId]);
-            }
-            return RegisterImage(org, image, org[image.AssemblyId][image.PluginId][image.StepId]);
+            // Steps on webhooks and service endpoints have no assembly, so look the step up directly
+            return RegisterImage(org, image, org.Steps[image.StepId]);
         }
 
         public static Guid RegisterImage(CrmOrganization org, CrmPluginImage image, CrmPluginStep step)
@@ -611,7 +608,7 @@ namespace Xrm.Sdk.PluginRegistration.Helpers
                 throw new ArgumentNullException("image");
             }
 
-            UpdateImage(org, image, org[image.AssemblyId][image.PluginId][image.StepId]);
+            UpdateImage(org, image, org.Steps[image.StepId]);
         }
 
         public static void UpdateImage(CrmOrganization org, CrmPluginImage image, CrmPluginStep step)

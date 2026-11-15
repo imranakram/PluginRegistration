@@ -80,7 +80,7 @@ namespace Xrm.Sdk.PluginRegistration.Forms
                 txtEntityAlias.Text = image.EntityAlias;
                 txtName.Text = image.Name;
 
-                step = m_org[image.AssemblyId][image.PluginId][image.StepId];
+                step = m_org.Steps[image.StepId];
                 // Set PreImage checkbox state
                 SetPreImageCheckboxForStep(step);
 
@@ -132,8 +132,19 @@ namespace Xrm.Sdk.PluginRegistration.Forms
                 crmParameters.ClearAttributes();
                 if (trvPlugins.HasNode(selectNodeId))
                 {
-                    step = trvPlugins[selectNodeId] as CrmPluginStep;
-                    trvPlugins.SelectedNode = step;
+                    // Opened from a step, or from a node (endpoint, plug-in, assembly...) with a single step under it
+                    step = FindOnlyStep(trvPlugins[selectNodeId]);
+                    if (step != null && trvPlugins.HasNode(step.NodeId))
+                    {
+                        trvPlugins.SelectedNode = trvPlugins[step.NodeId];
+                        // Runs the selection logic (Register button, entity, pre-image) even if the tree
+                        // has no window yet and so raises no event.
+                        trvPlugins_SelectionChanged(trvPlugins, new CrmTreeNodeTreeEventArgs(step, TreeViewAction.Unknown));
+                    }
+                    else
+                    {
+                        step = null;
+                    }
                 }
             }
             crmParameters.Enabled = step != null && !step.MessageEntityId.Equals(Guid.Empty) && !org.MessageEntities[step.MessageEntityId].PrimaryEntity.Equals("none");
@@ -144,6 +155,47 @@ namespace Xrm.Sdk.PluginRegistration.Forms
         }
 
         #endregion Public Constructors
+
+        #region Public Methods
+
+        /// <summary>
+        /// The step to pre-select: the node itself when it is a step, otherwise the only step found
+        /// beneath it. Null when there are none or more than one, so the user picks.
+        /// </summary>
+        public static CrmPluginStep FindOnlyStep(ICrmTreeNode node)
+        {
+            if (node == null)
+            {
+                return null;
+            }
+            if (node is CrmPluginStep self)
+            {
+                return self;
+            }
+
+            CrmPluginStep found = null;
+            var pending = new Stack<ICrmTreeNode>(node.NodeChildren ?? new List<ICrmTreeNode>());
+            while (pending.Count != 0)
+            {
+                var current = pending.Pop();
+                if (current is CrmPluginStep step)
+                {
+                    if (found != null)
+                    {
+                        return null;
+                    }
+                    found = step;
+                    continue; // images under a step aren't steps
+                }
+                foreach (var child in current.NodeChildren ?? new List<ICrmTreeNode>())
+                {
+                    pending.Push(child);
+                }
+            }
+            return found;
+        }
+
+        #endregion Public Methods
 
         #region Private Methods
 
@@ -194,7 +246,7 @@ namespace Xrm.Sdk.PluginRegistration.Forms
             }
             else
             {
-                step = m_org[m_currentImage.AssemblyId][m_currentImage.PluginId][m_currentImage.StepId];
+                step = m_org.Steps[m_currentImage.StepId];
             }
 
             //Retrieve the message

@@ -420,12 +420,11 @@ namespace Xrm.Sdk.PluginRegistration
             // 
             // toolServiceEndpointRegister
             // 
-            this.toolServiceEndpointRegister.Enabled = false;
             this.toolServiceEndpointRegister.Name = "toolServiceEndpointRegister";
             this.toolServiceEndpointRegister.ShortcutKeyDisplayString = "Ctrl+E";
             this.toolServiceEndpointRegister.Size = new System.Drawing.Size(274, 22);
             this.toolServiceEndpointRegister.Text = "Register New Service &Endpoint";
-            this.toolServiceEndpointRegister.Visible = false;
+            this.toolServiceEndpointRegister.Click += new System.EventHandler(this.toolServiceEndpointRegister_Click);
             // 
             // toolWebHookRegister
             // 

@@ -39,7 +39,21 @@ namespace Xrm.Sdk.PluginRegistration
         Queue = 2,
         Rest = 3,
         TwoWay = 4,
-        Webhook = 8
+        Topic = 5,
+        PersistentQueue = 6,
+        EventHub = 7,
+        Webhook = 8,
+        EventGrid = 9,
+        // Created and managed by Dataverse itself (e.g. Azure Synapse Link / Fabric); listed, never edited
+        ManagedDataLake = 10,
+        ContainerStorage = 11
+    }
+
+    public enum CrmServiceEndpointMessageFormat
+    {
+        BinaryXml = 1,
+        Json = 2,
+        TextXml = 3
     }
 
     public enum CrmServiceEndpointUserClaim
@@ -51,11 +65,15 @@ namespace Xrm.Sdk.PluginRegistration
 
     public enum CrmServiceEndpointAuthType
     {
+        SASKey = 2,
+        SASToken = 3,
         WebhookKey = 4,
         HttpHeader = 5,
-        HttpQueryString = 6
+        HttpQueryString = 6,
+        AccessKey = 8
     }
 
+    [TypeDescriptionProvider(typeof(CrmServiceEndpointDescriptionProvider))]
     public sealed class CrmServiceEndpoint : ICrmEntity, ICrmTreeNode
     {
         #region Public Fields
@@ -105,8 +123,10 @@ namespace Xrm.Sdk.PluginRegistration
                         new CrmEntityColumn("Description", "Description", typeof(string)),
                         new CrmEntityColumn("SolutionNamespace", "Solution Namespace", typeof(string)),
                         new CrmEntityColumn("Path", "Path", typeof(string)),
-                        new CrmEntityColumn("Contract", "Path", typeof(string)),
-                        new CrmEntityColumn("UserClaim", "Path", typeof(string)),
+                        new CrmEntityColumn("Contract", "Contract", typeof(string)),
+                        new CrmEntityColumn("UserClaim", "User Claim", typeof(string)),
+                        new CrmEntityColumn("NamespaceAddress", "Namespace Address", typeof(string)),
+                        new CrmEntityColumn("MessageFormat", "Message Format", typeof(string)),
                         new CrmEntityColumn("ConnectionMode", "Connection Mode", typeof(string)),
                         new CrmEntityColumn("ModifiedOn", "Modified On", typeof(string)),
                         new CrmEntityColumn("Isolatable", "Isolatable", typeof(string)),
@@ -180,8 +200,71 @@ namespace Xrm.Sdk.PluginRegistration
         [Browsable(false)]
         public string AuthValue
         {
-            get; 
+            get;
             set;
+        }
+
+        [Category("Information"), Browsable(true), ReadOnly(true)]
+        public string NamespaceAddress
+        {
+            get;
+            set;
+        }
+
+        [Category("Information"), Browsable(true), ReadOnly(true)]
+        public CrmServiceEndpointMessageFormat? MessageFormat
+        {
+            get;
+            set;
+        }
+
+        [Category("Information"), Browsable(true), ReadOnly(true)]
+        public string SasKeyName
+        {
+            get;
+            set;
+        }
+
+        // Dataverse never returns the SAS key or token, like authvalue. Null means "keep the saved value".
+        [Browsable(false)]
+        public string SasKey
+        {
+            get;
+            set;
+        }
+
+        [Browsable(false)]
+        public string SasToken
+        {
+            get;
+            set;
+        }
+
+        /// <summary>
+        /// True for the contracts that send to a Service Bus, Relay or Event Hub namespace
+        /// (namespace address + path + SAS key or token); false for the URL based ones.
+        /// </summary>
+        [Browsable(false)]
+        public bool UsesNamespace
+        {
+            get { return IsNamespaceContract(Contract); }
+        }
+
+        public static bool IsNamespaceContract(CrmServiceEndpointContract contract)
+        {
+            switch (contract)
+            {
+                case CrmServiceEndpointContract.OneWay:
+                case CrmServiceEndpointContract.Queue:
+                case CrmServiceEndpointContract.Rest:
+                case CrmServiceEndpointContract.TwoWay:
+                case CrmServiceEndpointContract.Topic:
+                case CrmServiceEndpointContract.PersistentQueue:
+                case CrmServiceEndpointContract.EventHub:
+                    return true;
+                default:
+                    return false;
+            }
         }
 
         [Browsable(false)]
@@ -190,10 +273,21 @@ namespace Xrm.Sdk.PluginRegistration
             get { return ServiceEndpoint.EntityLogicalName; }
         }
 
+        /// <summary>
+        /// Endpoint types the tool can't register or edit, such as the Managed Data Lake endpoint
+        /// Dataverse creates for itself, count as system items: no update, unregister or new steps.
+        /// </summary>
         [Browsable(false)]
         public bool IsSystemCrmEntity
         {
-            get { return false; }
+            get { return !IsEditableContract(Contract); }
+        }
+
+        public static bool IsEditableContract(CrmServiceEndpointContract contract)
+        {
+            return contract == CrmServiceEndpointContract.Webhook
+                || contract == CrmServiceEndpointContract.EventGrid
+                || IsNamespaceContract(contract);
         }
 
         [Category("Information"), Browsable(true), ReadOnly(true)]
@@ -233,13 +327,13 @@ namespace Xrm.Sdk.PluginRegistration
         [Browsable(false)]
         public CrmTreeNodeImageType NodeImageType
         {
-            get { return CrmTreeNodeImageType.ServiceEndpoint; }
+            get { return Contract == CrmServiceEndpointContract.Webhook ? CrmTreeNodeImageType.WebHook : CrmTreeNodeImageType.ServiceEndpoint; }
         }
 
         [Browsable(false)]
         public CrmTreeNodeImageType NodeSelectedImageType
         {
-            get { return CrmTreeNodeImageType.ServiceEndpoint; }
+            get { return NodeImageType; }
         }
 
         [Browsable(false)]
@@ -358,6 +452,9 @@ namespace Xrm.Sdk.PluginRegistration
                 valueList.Add("ModifiedOn", ModifiedOn);
                 valueList.Add("CreatedOn", CreatedOn);
                 valueList.Add("Url", Url);
+                valueList.Add("AuthType", AuthType.ToString());
+                valueList.Add("NamespaceAddress", NamespaceAddress);
+                valueList.Add("MessageFormat", MessageFormat?.ToString());
 
                 return valueList;
             }
@@ -448,6 +545,28 @@ namespace Xrm.Sdk.PluginRegistration
             serviceEndPoint.SolutionNamespace = SolutionNamespace;
             serviceEndPoint.Url = Url;
 
+            if (UsesNamespace)
+            {
+                serviceEndPoint.NamespaceAddress = NamespaceAddress;
+                // 2 = Namespace Address: the tool always takes the full sb:// address
+                serviceEndPoint.NamespaceFormat = new OptionSetValue(2);
+                serviceEndPoint.SASKeyName = SasKeyName;
+                // Same as authvalue: only send the secrets when they were entered
+                if (SasKey != null)
+                {
+                    serviceEndPoint.SASKey = SasKey;
+                }
+                if (SasToken != null)
+                {
+                    serviceEndPoint.SASToken = SasToken;
+                }
+            }
+
+            if (MessageFormat.HasValue)
+            {
+                serviceEndPoint.MessageFormat = new OptionSetValue((int)MessageFormat.Value);
+            }
+
             entityList.Add(ServiceEndpoint.EntityLogicalName, serviceEndPoint);
 
             return entityList;
@@ -466,6 +585,13 @@ namespace Xrm.Sdk.PluginRegistration
             SolutionNamespace = serviceEndPoint.SolutionNamespace;
             Url = serviceEndPoint.Url;
             AuthValue = serviceEndPoint.AuthValue;
+            NamespaceAddress = serviceEndPoint.NamespaceAddress;
+            SasKeyName = serviceEndPoint.SASKeyName;
+            SasKey = serviceEndPoint.SASKey;
+            SasToken = serviceEndPoint.SASToken;
+            MessageFormat = serviceEndPoint.MessageFormat == null
+                ? (CrmServiceEndpointMessageFormat?)null
+                : (CrmServiceEndpointMessageFormat)serviceEndPoint.MessageFormat.Value;
 
             if (serviceEndPoint.ServiceEndpointId != Guid.Empty)
             {
@@ -523,5 +649,69 @@ namespace Xrm.Sdk.PluginRegistration
         }
 
         #endregion Public Methods
+    }
+
+    /// <summary>
+    /// Shows only the properties that apply to the endpoint's type in the property grid: a Service
+    /// Bus endpoint has no URL, a webhook no namespace, path or message format.
+    /// </summary>
+    internal sealed class CrmServiceEndpointDescriptionProvider : TypeDescriptionProvider
+    {
+        private static readonly string[] AddressProperties =
+        {
+            nameof(CrmServiceEndpoint.Url),
+            nameof(CrmServiceEndpoint.NamespaceAddress),
+            nameof(CrmServiceEndpoint.Path),
+            nameof(CrmServiceEndpoint.SasKeyName),
+            nameof(CrmServiceEndpoint.SolutionNamespace),
+        };
+
+        public CrmServiceEndpointDescriptionProvider()
+            : base(TypeDescriptor.GetProvider(typeof(object)))
+        {
+        }
+
+        public override ICustomTypeDescriptor GetTypeDescriptor(Type objectType, object instance)
+        {
+            var descriptor = base.GetTypeDescriptor(objectType, instance);
+            return instance is CrmServiceEndpoint endpoint ? new Descriptor(descriptor, endpoint) : descriptor;
+        }
+
+        internal static bool Applies(CrmServiceEndpoint endpoint, PropertyDescriptor property)
+        {
+            if (property.Name == nameof(CrmServiceEndpoint.MessageFormat))
+            {
+                return endpoint.UsesNamespace;
+            }
+
+            if (AddressProperties.Contains(property.Name))
+            {
+                // Dataverse leaves the fields of the other kind of address empty (or a single space)
+                return !string.IsNullOrWhiteSpace(property.GetValue(endpoint) as string);
+            }
+
+            return true;
+        }
+
+        private sealed class Descriptor : CustomTypeDescriptor
+        {
+            private readonly CrmServiceEndpoint endpoint;
+
+            public Descriptor(ICustomTypeDescriptor parent, CrmServiceEndpoint endpoint)
+                : base(parent)
+            {
+                this.endpoint = endpoint;
+            }
+
+            public override PropertyDescriptorCollection GetProperties() => Filter(base.GetProperties());
+
+            public override PropertyDescriptorCollection GetProperties(Attribute[] attributes) => Filter(base.GetProperties(attributes));
+
+            private PropertyDescriptorCollection Filter(PropertyDescriptorCollection properties)
+            {
+                return new PropertyDescriptorCollection(properties.Cast<PropertyDescriptor>()
+                    .Where(property => Applies(endpoint, property)).ToArray(), true);
+            }
+        }
     }
 }
