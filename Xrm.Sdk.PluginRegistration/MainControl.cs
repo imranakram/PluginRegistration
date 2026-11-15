@@ -1602,6 +1602,18 @@ namespace Xrm.Sdk.PluginRegistration
             }
         }
 
+        /// <summary>
+        /// Register New Step makes no sense from a step or an image: those already belong to a step.
+        /// </summary>
+        public static bool CanRegisterStepFrom(CrmTreeNodeType? selected) =>
+            selected != CrmTreeNodeType.Step && selected != CrmTreeNodeType.Image;
+
+        /// <summary>
+        /// Register New Image makes no sense from an image; select its step instead.
+        /// </summary>
+        public static bool CanRegisterImageFrom(CrmTreeNodeType? selected) =>
+            selected != CrmTreeNodeType.Image;
+
         private void SelectItem(ICrmTreeNode node)
         {
             //Reset the visibility and enabled properties because we don't what is enabled
@@ -1632,6 +1644,12 @@ namespace Xrm.Sdk.PluginRegistration
             {
                 item.Visible = !isEndpointNode;
             }
+
+            // Menu, toolbar and shortcuts (which check the toolbar item) follow the same rule
+            var canRegisterStep = CanRegisterStepFrom(node?.NodeType);
+            toolStepRegister.Enabled = mnuContextNodeStepRegister.Enabled = mnuContextGeneralStepRegister.Enabled = canRegisterStep;
+            var canRegisterImage = CanRegisterImageFrom(node?.NodeType);
+            toolImageRegister.Enabled = mnuContextNodeImageRegister.Enabled = mnuContextGeneralImageRegister.Enabled = canRegisterImage;
 
             bool isSystemNode = IsNodeSystemItem(trvPlugins.SelectedNode);
             if (node == null)

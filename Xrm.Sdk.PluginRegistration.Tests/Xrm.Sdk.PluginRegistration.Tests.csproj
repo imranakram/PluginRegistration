@@ -56,6 +56,7 @@
   <ItemGroup>
     <Compile Include="Enities\SdkMessageFixture.cs" />
     <Compile Include="Connections\ConnectionStateTests.cs" />
+    <Compile Include="ContextMenus\RegisterMenuRuleTests.cs" />
     <Compile Include="Connections\OrganizationMessageLoadingTests.cs" />
     <Compile Include="RecordingOrganizationService.cs" />
     <Compile Include="Integration\CustomApiLifecycleTests.cs" />
