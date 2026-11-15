@@ -1603,10 +1603,27 @@ namespace Xrm.Sdk.PluginRegistration
         }
 
         /// <summary>
-        /// Register New Step makes no sense from a step or an image: those already belong to a step.
+        /// Register New Step is offered where a step can go: on a plug-in, service endpoint or webhook,
+        /// under a message or Custom API, or with nothing selected. Not on assemblies and packages (they
+        /// hold plug-ins, not steps), workflow activities (they can't have steps), or steps and images.
         /// </summary>
-        public static bool CanRegisterStepFrom(CrmTreeNodeType? selected) =>
-            selected != CrmTreeNodeType.Step && selected != CrmTreeNodeType.Image;
+        public static bool CanRegisterStepFrom(CrmTreeNodeType? selected)
+        {
+            switch (selected)
+            {
+                case null:
+                case CrmTreeNodeType.Plugin:
+                case CrmTreeNodeType.ServiceEndpoint:
+                case CrmTreeNodeType.WebHook:
+                case CrmTreeNodeType.Message:
+                case CrmTreeNodeType.MessageEntity:
+                case CrmTreeNodeType.CustomApi:
+                    return true;
+
+                default:
+                    return false;
+            }
+        }
 
         /// <summary>
         /// An image belongs to one step, so Register New Image is only offered on a step.
