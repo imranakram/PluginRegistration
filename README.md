@@ -1,32 +1,58 @@
-# The Classic Microsoft Dynamics CRM Plugin Registration Tool
-## Now in the XrmToolBox suite
+# Plugin Registration for XrmToolBox
 
-Questions, bugs and ideas: [GitHub Issues](https://github.com/imranakram/PluginRegistration/issues)
-
-##### Project description
+Register and manage plug-ins, custom workflow activities, steps, images, webhooks, service endpoints and Custom APIs in Microsoft Dataverse and Dynamics 365, from inside [XrmToolBox](https://www.xrmtoolbox.com/).
 
 ![Plugin Registration](https://raw.githubusercontent.com/imranakram/PluginRegistration/master/docs/images/plugin-registration.png)
 
-This is special flavor of classical Plugin Registration Tool provided by Microsoft as CRM SDK code sample. It was adopted to the format of [XrmToolBox](http://www.xrmtoolbox.com/) plugin and itended to work with the same set of the Dynamics CRM versions as supported by main application.
+Questions, bugs and ideas: [GitHub Issues](https://github.com/imranakram/PluginRegistration/issues)
 
-##### Project status
+## Getting started
 
-* All main operations are working (but still use carefully on production environments!);
-* Azure-related code was stripped away;
-* Plugin might 'freeze' for couple seconds during calls to CRM backend (user should be notified about operation performed in `XrmToolBox`-like way);
-* Some add-on features Including 
-	* Filtering Managed/Unmanaged Assemblies 
-	* Exporting Plugin Assemblies, Steps and image information to Excel
-	* Filtering Attributes etc.
-	* Managed identities for plug-in assemblies and packages (Dataverse online only): create, edit and delete `managedidentity` records and link them from the assembly or package context menu
+1. In XrmToolBox, open the **Tool Library**, search for **Plugin Registration** and install it.
+2. Connect to an environment and open the tool. The tree shows everything registered in the environment, grouped by assembly.
+3. Use the **Register** menu, or right-click a node in the tree, to register something new. Select a node to see its properties, and use **Update** or **Unregister** to change or remove it.
 
-##### Project needs
+Try changes in a development or test environment before making them in production.
 
-* Your bug-reports;
-* Your pull-requests;
-* Your features suggestions;
+## Features
 
-##### Running the tests
+### Plug-in assemblies and packages
+- Register an assembly and choose which of its plug-ins and custom workflow activities to register, with sandbox isolation and database storage. On-premises environments can also store the assembly on disk or in the GAC.
+- Update an assembly with a new build and register any plug-ins added to it. A build that no longer contains a registered plug-in is refused until that plug-in is unregistered.
+- Register and update plug-in packages (NuGet packages with dependent assemblies).
+- Link a managed identity to an assembly or package, and create, edit or delete identities (Dataverse online only).
+
+### Steps and images
+- Register steps on a message and table, with filtering attributes, stage, synchronous or asynchronous execution, execution order, the user to run as, and secure and unsecure configuration.
+- Enable or disable a single step, or all steps of an assembly at once.
+- Add pre-images and post-images with the columns they should hold.
+
+### Webhooks and service endpoints
+- Register webhooks with HTTP header, webhook key or query string authentication, and register steps on them.
+- Register Azure service endpoints: Service Bus queues and topics, Event Hubs, one-way, two-way and REST relays, and Event Grid, with a SAS key, SAS token or access key. Register steps on them to send the execution context to Azure.
+
+### Custom APIs
+- Create, edit and delete Custom APIs with their request parameters and response properties, in an unmanaged solution you choose.
+
+### Finding and housekeeping
+- Display the tree by package, assembly, entity or message, search it, and filter out managed assemblies or assemblies whose names start with given terms.
+- Add components to a solution, check for an unmanaged active layer and remove it, and show an assembly's, plug-in's or step's dependencies.
+- Export assemblies, steps, images, webhooks and service endpoints to CSV or Excel.
+- Unregister an assembly with everything registered on it, after a check that it isn't part of a plug-in package.
+
+## Where it comes from
+
+This tool started life as the **Plug-in Registration Tool sample** that Microsoft published with the **Microsoft Dynamics CRM 2011 SDK** in 2010. That sample came with full source code and showed how to use the SDK's registration classes. In 2015 the source was ported to XrmToolBox, and the community has maintained and extended it since: plug-in packages, Custom APIs, managed identities, webhooks and service endpoints have all been added along the way.
+
+Source files that still contain Microsoft's sample code keep the original Microsoft copyright header. Microsoft now ships its own, separately developed Plug-in Registration Tool through the Power Platform CLI (`pac tool prt`). This project is not affiliated with Microsoft.
+
+## Contributing
+
+Bug reports, ideas and pull requests are welcome through [GitHub Issues](https://github.com/imranakram/PluginRegistration/issues).
+
+The tool is a .NET Framework 4.8 class library. Open `PluginRegistration.sln` in Visual Studio and build. To try a build, close XrmToolBox and copy `Xrm.Sdk.PluginRegistration.dll` from `Xrm.Sdk.PluginRegistration\bin\Debug` to `%APPDATA%\MscrmTools\XrmToolBox\Plugins`.
+
+### Running the tests
 
 The unit tests run without any setup. The integration tests (category `Integration`) register a test plug-in assembly in a real Dataverse environment through the tool's own registration code. They create steps, an image, a webhook, a service endpoint (with a fake Service Bus address, so nothing is ever sent) and a Custom API with a plug-in handler, check that each one loads back and runs, and then unregister everything again. Use a developer or trial environment, never production.
 
@@ -35,99 +61,6 @@ The unit tests run without any setup. The integration tests (category `Integrati
 
 Without a configuration the integration tests are skipped, so CI only runs the unit tests.
 
-Context of original CRM SDK `readme.docx` follows bellow:
+## License
 
----------------------------------------------------------
-
-Microsoft Dynamics CRM 2011 SDK
-===============================
-
-Plug-in Registration Tool Readme
---------------------------------
-
-September 2010
---------------
-
-Contents
---------
-
-[Overview](#overview)
-
-[Contents of the Folders](#contents-of-the-folders)
-
-[Installation Instructions](#installation-instructions)
-
-[Important Notes](#important-notes)
-
-[Known Problems](#known-problems)
-
-[Copyright](#copyright)
-
-Overview
---------
-
-The Plug-in Registration sample tool (version 5.0) provides a graphical user interface to register Microsoft Dynamics CRM plug-ins and custom workflow activities. The tool supports the following feature set on the
-indicated Microsoft Dynamics CRM deployments.
-
-Microsoft Dynamics CRM 2011
-
-* Register plug-ins and custom workflow activities
-
-Microsoft Dynamics CRM Online
-
-* Register plug-ins
-
-In addition to these features, the tool provides an easy and interactive method to configure [Windows Azure AppFabric](http://www.microsoft.com/windowsazure/appfabric/) ACS for integration with Microsoft Dynamics CRM. Afterwards, you can register a standard plug-in provided with Microsoft Dynamics CRM to post the current platform operation to the AppFabric Service Bus.
-
-The source code to the program is provided to demonstrate how to use the registration classes provided in the Microsoft Dynamics CRM 2011 SDK.
-
-Contents of the Folders
------------------------
-
-The PluginRegistration folder contains the complete source code and Microsoft Visual Studio 2010 project files for the sample program. The images folder contains bitmap files for the icons used in the program.
-
-Installation Instructions
--------------------------
-
-1.  Download and install [Windows Identity Foundation](http://msdn.microsoft.com/en-us/security/aa570351.aspx).
-2.  In Windows Explorer, double-click the PluginRegistrationTool.sln file to open the solution in Visual Studio 2010.
-3.  Compile the project by clicking **Build Solution** in the **Build** menu.
-
-Add the Tool to Visual Studio
------------------------------
-
-You can register the Plug-in Registration Tool as an external tool for Visual Studio 2010.
-
-1.  Open Visual Studio 2010.
-2.  Click **Tools**, click **External Tools**, and then click **Add**. If you have not yet added any tools, click [**New Tool 1**].
-3.  In the **Title** field, type CRM Plug-in Registration Tool.
-4.  In the **Command** field, click the ellipsis (**…**) button and navigate to the PluginRegistration.exe file that you built in the previous task. Click **Open**.
-5.  Click **OK** to close the **External Tools** dialog box.
-
-Important Notes
----------------
-
--   The sample files are not intended to be used in a production environment without prior testing. You should deploy an application that makes use of this sample code to a test environment and examine it for interaction or interference with other parts of the system.
--   Before you deploy applications that make use of this sample code to a production environment, make sure that you consider the existing customizations you may have implemented in Microsoft Dynamics CRM 2011.
--   There is no longer any support in the tool for command line parameters.
--   The tool supports registering plug-ins or custom workflow activities for custom entities.
--   A plug-in assembly named Microsoft.Crm.Extensibility.V3CalloutProxyPlugin.dll may be shown in the list view. However, v3.0 callouts are not supported in Microsoft Dynamics CRM 2011 or Microsoft Dynamics CRM Online.
--   This release of the tool supports registering plug-ins compiled with the Microsoft Dynamics CRM 2011 SDK assemblies. To register plug-ins compiled using the 4.0 SDK assemblies, use the Plug-in Registration Tool included in the 4.0 SDK.
-
-Known Problems
---------------
-
-Copyright 
-----------
-
-This document is provided "as-is". Information and views expressed in this document, including URL and other Internet Web site references, may change without notice. You bear the risk of using it.
-
-Some examples depicted herein are provided for illustration only and are fictitious. No real association or connection is intended or should be inferred.
-
-This document does not provide you with any legal rights to any intellectual property in any Microsoft product. You may copy and use this document for your internal, reference purposes.
-
-© 2010 Microsoft Corporation. All rights reserved.
-
-Microsoft, Active Directory, Outlook, Visual Studio, Windows, Windows Server, and Windows Vista are trademarks of the Microsoft group of companies.
-
-All other trademarks are property of their respective owners.
+[MIT](LICENSE). Portions are derived from the Microsoft Dynamics CRM SDK code samples; see the license file for details.
