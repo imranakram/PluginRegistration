@@ -524,7 +524,11 @@ namespace Xrm.Sdk.PluginRegistration.Helpers
         /// <summary>
         /// Loads/Reloads Service Endpoitns from CRM
         /// </summary>
-        public static void LoadServiceEndpoints(CrmOrganization org)
+        /// <summary>
+        /// Loads the service endpoints other than webhooks, and adds them to the handler list so
+        /// LoadSteps can attach the steps that use them.
+        /// </summary>
+        public static void LoadServiceEndpoints(CrmOrganization org, Dictionary<Guid, ICrmEntity> typeList)
         {
             if (org == null)
             {
@@ -545,7 +549,9 @@ namespace Xrm.Sdk.PluginRegistration.Helpers
 
             foreach (var serviceEndPoint in org.OrganizationService.RetrieveMultipleAllPages(query).Entities.Select(x => Magic.CastTo<ServiceEndpoint>(x)))
             {
-                org.AddServiceEndpoint(new CrmServiceEndpoint(org, serviceEndPoint));
+                var crmServiceEndpoint = new CrmServiceEndpoint(org, serviceEndPoint);
+                org.AddServiceEndpoint(crmServiceEndpoint);
+                typeList[crmServiceEndpoint.EntityId] = crmServiceEndpoint;
             }
         }
 
@@ -675,7 +681,7 @@ namespace Xrm.Sdk.PluginRegistration.Helpers
                         prog.Increment("Loading Service Endpoints");
                     }
 
-                    LoadServiceEndpoints(org);
+                    LoadServiceEndpoints(org, typeList);
 
                     //Initialize list of webhooks
                     if (prog != null)
@@ -1017,7 +1023,11 @@ namespace Xrm.Sdk.PluginRegistration.Helpers
                             "connectionmode",
                             "description",
                             "url",
-                            "authtype");
+                            "authtype",
+                            "namespaceaddress",
+                            "namespaceformat",
+                            "messageformat",
+                            "saskeyname");
                         break;
 
                     case PluginPackage.EntityLogicalName:

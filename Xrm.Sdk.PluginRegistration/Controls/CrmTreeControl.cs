@@ -58,6 +58,8 @@ namespace Xrm.Sdk.PluginRegistration.Controls
         ServiceEndpointSelected,
         Package,
         PackageSelected,
+        WebHook,
+        WebHookSelected,
     }
 
     [Flags]

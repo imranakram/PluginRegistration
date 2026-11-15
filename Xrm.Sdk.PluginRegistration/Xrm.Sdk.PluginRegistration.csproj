@@ -133,6 +133,9 @@
     <Compile Include="Helpers\CustomApiEditorData.cs" />
     <Compile Include="Forms\CustomApiEditorForm.cs" />
     <Compile Include="Forms\CustomApiParameterForm.cs" />
+    <Compile Include="Forms\ServiceEndpointRegistrationForm.cs">
+      <SubType>Form</SubType>
+    </Compile>
     <Compile Include="Forms\CustomApiSolutionForm.cs" />
     <Compile Include="Forms\CustomApiFormLayout.cs" />
     <Compile Include="MainControl.CustomApis.cs" />
@@ -497,6 +500,7 @@
     <Content Include="Images\Save.png" />
     <Content Include="Images\Search.png" />
     <Content Include="Images\ServiceEndpoint.png" />
+    <Content Include="Images\azureendpoint.png" />
     <None Include="Images\ServiceEndpointSelected.gif" />
     <Content Include="Images\StepProfiled.gif" />
     <Content Include="Images\StepProfiledSelected.gif" />

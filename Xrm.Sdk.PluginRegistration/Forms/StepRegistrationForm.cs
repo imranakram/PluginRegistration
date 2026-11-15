@@ -174,6 +174,12 @@ namespace Xrm.Sdk.PluginRegistration.Forms
             CrmServiceEndpoint selectServiceEndpoint = null;
             foreach (CrmServiceEndpoint currentServiceEndpoint in org.ServiceEndpoints.Values)
             {
+                if (currentServiceEndpoint.IsSystemCrmEntity)
+                {
+                    // Managed Data Lake and similar endpoints aren't step targets
+                    continue;
+                }
+
                 if (serviceEndpoint != null && serviceEndpoint.ServiceEndpointId == currentServiceEndpoint.ServiceEndpointId)
                 {
                     selectServiceEndpoint = currentServiceEndpoint;
@@ -193,9 +199,11 @@ namespace Xrm.Sdk.PluginRegistration.Forms
                 }
             }
 
-            // Webhook case
+            // Webhook case. Decided by the endpoint itself: for a service endpoint the plugin is the
+            // built-in Service Bus plug-in, which is dropped above, so "no plugin" doesn't mean webhook.
+            var isWebhook = serviceEndpoint?.Contract == CrmServiceEndpointContract.Webhook;
             CrmServiceEndpoint selectedWebhook = null;
-            if (plugin == null && serviceEndpoint != null)
+            if (isWebhook)
             {
                 foreach (var webhook in org.Webhooks.Values)
                 {
@@ -221,7 +229,7 @@ namespace Xrm.Sdk.PluginRegistration.Forms
 
             if (serviceEndpoint != null)
             {
-                UpdatePluginEventHandlerControls(true, plugin == null);
+                UpdatePluginEventHandlerControls(true, isWebhook);
             }
             else
             {
@@ -651,7 +659,11 @@ namespace Xrm.Sdk.PluginRegistration.Forms
             }
             step.AssemblyId = plugin?.AssemblyId ?? Guid.Empty;
             step.FilteringAttributes = crmFilteringAttributes.Attributes;
-            step.PluginId = plugin?.PluginId ?? ((CrmServiceEndpoint)cmbWebhook.SelectedItem).EntityId;
+            // Without a plug-in, match what Dataverse returns when the step is loaded: a webhook step has the
+            // webhook as its plug-in id, a service endpoint step the built-in Service Bus plug-in
+            step.PluginId = plugin?.PluginId ?? (cmbWebhook.Visible
+                ? ((CrmServiceEndpoint)cmbWebhook.SelectedItem).EntityId
+                : ((CrmServiceEndpoint)cmbServiceEndpoint.SelectedItem).PluginId);
             step.ImpersonatingUserId = ((CrmUser)cmbUsers.SelectedItem).UserId;
             step.Name = txtName.Text;
             step.UnsecureConfiguration = txtUnsecureConfiguration.Text;
@@ -818,16 +830,27 @@ namespace Xrm.Sdk.PluginRegistration.Forms
 
                         m_currentStep.AssemblyId = step.AssemblyId;
                         m_currentStep.PluginId = step.PluginId;
-                        m_org.Assemblies[step.AssemblyId][step.PluginId].AddStep(step);
+                        m_currentStep.ServiceBusConfigurationId = step.ServiceBusConfigurationId;
+                        // Steps on a webhook or service endpoint have no assembly or plug-in to add them to
+                        if (m_org.Assemblies.ContainsKey(step.AssemblyId))
+                        {
+                            m_org.Assemblies[step.AssemblyId][step.PluginId].AddStep(step);
+                        }
                         m_orgControl.AddStep(step);
                     }
                     else if (m_currentStep.ServiceBusConfigurationId != step.ServiceBusConfigurationId)
                     {
                         m_orgControl.RemoveStep(step.NodeId);
-                        m_org.Assemblies[m_currentStep.AssemblyId][m_currentStep.PluginId].RemoveStep(step.StepId);
+                        if (m_org.Assemblies.ContainsKey(m_currentStep.AssemblyId))
+                        {
+                            m_org.Assemblies[m_currentStep.AssemblyId][m_currentStep.PluginId].RemoveStep(step.StepId);
+                        }
 
                         m_currentStep.ServiceBusConfigurationId = step.ServiceBusConfigurationId;
-                        m_org.Assemblies[step.AssemblyId][step.PluginId].AddStep(step);
+                        if (m_org.Assemblies.ContainsKey(step.AssemblyId))
+                        {
+                            m_org.Assemblies[step.AssemblyId][step.PluginId].AddStep(step);
+                        }
                         m_orgControl.AddStep(step);
                     }
                     else
@@ -844,7 +867,18 @@ namespace Xrm.Sdk.PluginRegistration.Forms
                     List<ICrmEntity> stepList = new List<ICrmEntity>(new ICrmEntity[] { step });
                     OrganizationHelper.UpdateDates(m_org, stepList);
 
-                    plugin?.AddStep(step);
+                    if (plugin != null)
+                    {
+                        plugin.AddStep(step);
+                    }
+                    else
+                    {
+                        // As when loading: the step belongs to its webhook or service endpoint, which
+                        // stands in for the assembly. Then the image dialog and the tree can find it.
+                        var handler = (CrmServiceEndpoint)(cmbWebhook.Visible ? cmbWebhook.SelectedItem : cmbServiceEndpoint.SelectedItem);
+                        step.AssemblyId = handler.ServiceEndpointId;
+                        handler.AddStep(step);
+                    }
                     m_orgControl.AddStep(step);
                     OrganizationHelper.RefreshStep(m_org, step);
                 }

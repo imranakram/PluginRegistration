@@ -200,6 +200,114 @@
             }
         }
 
+        /// <summary>
+        /// Address of the Service Bus or Event Hub namespace, e.g. sb://contoso.servicebus.windows.net/.
+        /// </summary>
+        [AttributeLogicalName("namespaceaddress")]
+        public string NamespaceAddress
+        {
+            get
+            {
+                return GetAttributeValue<string>("namespaceaddress");
+            }
+            set
+            {
+                OnPropertyChanging("NamespaceAddress");
+                SetAttributeValue("namespaceaddress", value);
+                OnPropertyChanged("NamespaceAddress");
+            }
+        }
+
+        /// <summary>
+        /// Whether the namespace is given as a name (1) or as an address (2).
+        /// </summary>
+        [AttributeLogicalName("namespaceformat")]
+        public OptionSetValue NamespaceFormat
+        {
+            get
+            {
+                return GetAttributeValue<OptionSetValue>("namespaceformat");
+            }
+            set
+            {
+                OnPropertyChanging("NamespaceFormat");
+                SetAttributeValue("namespaceformat", value);
+                OnPropertyChanged("NamespaceFormat");
+            }
+        }
+
+        /// <summary>
+        /// Format of the message sent to the endpoint.
+        /// </summary>
+        [AttributeLogicalName("messageformat")]
+        public OptionSetValue MessageFormat
+        {
+            get
+            {
+                return GetAttributeValue<OptionSetValue>("messageformat");
+            }
+            set
+            {
+                OnPropertyChanging("MessageFormat");
+                SetAttributeValue("messageformat", value);
+                OnPropertyChanged("MessageFormat");
+            }
+        }
+
+        /// <summary>
+        /// Name of the shared access policy the SAS key belongs to.
+        /// </summary>
+        [AttributeLogicalName("saskeyname")]
+        public string SASKeyName
+        {
+            get
+            {
+                return GetAttributeValue<string>("saskeyname");
+            }
+            set
+            {
+                OnPropertyChanging("SASKeyName");
+                SetAttributeValue("saskeyname", value);
+                OnPropertyChanged("SASKeyName");
+            }
+        }
+
+        /// <summary>
+        /// Shared access key. Write-only: Dataverse never returns it.
+        /// </summary>
+        [AttributeLogicalName("saskey")]
+        public string SASKey
+        {
+            get
+            {
+                return GetAttributeValue<string>("saskey");
+            }
+            set
+            {
+                OnPropertyChanging("SASKey");
+                SetAttributeValue("saskey", value);
+                OnPropertyChanged("SASKey");
+            }
+        }
+
+        /// <summary>
+        /// Shared access signature token. Write-only: Dataverse never returns it.
+        /// </summary>
+        [AttributeLogicalName("sastoken")]
+        public string SASToken
+        {
+            get
+            {
+                return GetAttributeValue<string>("sastoken");
+            }
+            set
+            {
+                OnPropertyChanging("SASToken");
+                SetAttributeValue("sastoken", value);
+                OnPropertyChanged("SASToken");
+            }
+        }
+
         [AttributeLogicalName("serviceendpointid")]
         public override System.Guid Id
         {

@@ -26,6 +26,7 @@ namespace Xrm.Sdk.PluginRegistration.Tests.Integration
         private const string ContactPrefix = "PRT-IT ";
         private const string IdentityName = "PRT-IT identity";
         private const string WebhookName = "PRT-IT webhook";
+        private const string ServiceEndpointName = "PRT-IT service endpoint";
         private static readonly TimeSpan PropagationTimeout = TimeSpan.FromMinutes(2);
 
         private readonly List<Guid> createdContacts = new List<Guid>();
@@ -316,6 +317,97 @@ namespace Xrm.Sdk.PluginRegistration.Tests.Integration
             Assert.That(Exists("sdkmessageprocessingstep", stepId), Is.False);
         }
 
+        [Test, Order(9)]
+        public void ServiceEndpoint_RegisterUpdateAddStepAndUnregister()
+        {
+            // As ServiceEndpointRegistrationForm does. Dataverse doesn't contact the namespace when
+            // saving the endpoint, and no account is created, so nothing is ever sent to it.
+            var endpoint = new CrmServiceEndpoint(org)
+            {
+                Name = ServiceEndpointName,
+                Description = "Created by the integration tests",
+                Contract = CrmServiceEndpointContract.PersistentQueue,
+                NamespaceAddress = "sb://prt-integration-test.servicebus.windows.net/",
+                Path = "prt-queue",
+                AuthType = CrmServiceEndpointAuthType.SASKey,
+                SasKeyName = "RootManageSharedAccessKey",
+                SasKey = "cHJ0LWludGVncmF0aW9uLXRlc3Qta2V5LW5vdC1yZWFsLTEyMzQ1Njc4OTA=",
+                MessageFormat = CrmServiceEndpointMessageFormat.Json,
+                ConnectionMode = CrmServiceEndpointConnectionMode.Normal,
+                UserClaim = CrmServiceEndpointUserClaim.UserId,
+            };
+            var endpointId = RegistrationHelper.RegisterServiceEndpoint(org, endpoint);
+
+            Reload();
+            Assert.That(org.ServiceEndpoints.ContainsKey(endpointId), Is.True, "Loads into the tree as a service endpoint, not a webhook");
+            endpoint = org.ServiceEndpoints[endpointId];
+            Assert.That(endpoint.NodeType, Is.EqualTo(Controls.CrmTreeNodeType.ServiceEndpoint));
+            Assert.That(endpoint.Contract, Is.EqualTo(CrmServiceEndpointContract.PersistentQueue));
+            Assert.That(endpoint.NamespaceAddress, Is.EqualTo("sb://prt-integration-test.servicebus.windows.net/"));
+            Assert.That(endpoint.Path, Is.EqualTo("prt-queue"));
+            Assert.That(endpoint.AuthType, Is.EqualTo(CrmServiceEndpointAuthType.SASKey));
+            Assert.That(endpoint.SasKeyName, Is.EqualTo("RootManageSharedAccessKey"));
+            Assert.That(endpoint.SasKey, Is.Null, "Dataverse never returns the saved key");
+            Assert.That(endpoint.MessageFormat, Is.EqualTo(CrmServiceEndpointMessageFormat.Json));
+            Assert.That(endpoint.UserClaim, Is.EqualTo(CrmServiceEndpointUserClaim.UserId));
+            Assert.That(IsSet(endpointId, "issaskeyset"), Is.True);
+
+            // As editing does when the key is left empty: saskey is not sent, so it is kept
+            endpoint.Path = "prt-queue-renamed";
+            endpoint.Contract = CrmServiceEndpointContract.Topic;
+            var update = (PluginRegistration.Entities.ServiceEndpoint)endpoint.GenerateCrmEntities()["serviceendpoint"];
+            Assert.That(update.Attributes.ContainsKey("saskey"), Is.False);
+            RegistrationHelper.UpdateServiceEndpoint(org, endpoint);
+
+            // As StepRegistrationForm builds it: no assembly, the built-in Service Bus plug-in, the endpoint as handler
+            var step = NewStep("Create", "account", null);
+            step.AssemblyId = Guid.Empty;
+            step.PluginId = endpoint.PluginId;
+            step.ServiceBusConfigurationId = endpointId;
+            step.Mode = CrmPluginStepMode.Asynchronous;
+            step.Stage = CrmPluginStepStage.PostOperation;
+            var stepId = RegistrationHelper.RegisterStep(org, step);
+            step.StepId = stepId;
+
+            // As the form then does, so the new step is in the tree and the image dialog without a refresh
+            step.AssemblyId = endpointId;
+            endpoint.AddStep(step);
+            Assert.That(org.Steps.ContainsKey(stepId), Is.True);
+            Assert.That(endpoint.NodeChildren, Has.Member(step));
+
+            // An image on it, as ImageRegistrationForm does, before any refresh
+            var image = new CrmPluginImage(org)
+            {
+                AssemblyId = step.AssemblyId,
+                PluginId = step.PluginId,
+                StepId = stepId,
+                Attributes = "name",
+                EntityAlias = "PostImage",
+                Name = "PostImage",
+                MessagePropertyName = "Id",
+                ImageType = CrmPluginImageType.PostImage,
+            };
+            var imageId = RegistrationHelper.RegisterImage(org, image);
+
+            Reload();
+            endpoint = org.ServiceEndpoints[endpointId];
+            Assert.That(endpoint.Steps[stepId].Images.ContainsKey(imageId), Is.True, "The image loads back under the endpoint's step");
+            Assert.That(endpoint.Path, Is.EqualTo("prt-queue-renamed"));
+            Assert.That(endpoint.Contract, Is.EqualTo(CrmServiceEndpointContract.Topic));
+            Assert.That(IsSet(endpointId, "issaskeyset"), Is.True, "The update kept the saved key");
+            Assert.That(endpoint.Steps.ContainsKey(stepId), Is.True);
+            // Editing compares the form's step with the loaded one, so they must agree
+            Assert.That(endpoint.Steps[stepId].PluginId, Is.EqualTo(endpoint.PluginId), "Dataverse gives the step the built-in Service Bus plug-in");
+            Assert.That(endpoint.Steps[stepId].ServiceBusConfigurationId, Is.EqualTo(endpointId));
+
+            RegistrationHelper.Unregister(org, null, endpoint);
+
+            Reload();
+            Assert.That(org.ServiceEndpoints.ContainsKey(endpointId), Is.False);
+            Assert.That(Exists("sdkmessageprocessingstep", stepId), Is.False);
+            Assert.That(Exists("sdkmessageprocessingstepimage", imageId), Is.False);
+        }
+
         [Test, Order(10)]
         public void Unregister_Assembly_RemovesItsTypesStepsAndImages()
         {
@@ -441,6 +533,14 @@ namespace Xrm.Sdk.PluginRegistration.Tests.Integration
         }
 
         /// <summary>
+        /// Reads one of the serviceendpoint is...set flags, which say whether a write-only secret has a value.
+        /// </summary>
+        private bool IsSet(Guid serviceEndpointId, string flag)
+        {
+            return bench.Service.Retrieve("serviceendpoint", serviceEndpointId, new ColumnSet(flag)).GetAttributeValue<bool>(flag);
+        }
+
+        /// <summary>
         /// Removes what an earlier, interrupted run may have left behind.
         /// </summary>
         private void RemoveLeftovers()
@@ -448,6 +548,7 @@ namespace Xrm.Sdk.PluginRegistration.Tests.Integration
             Reload();
             var leftovers = org.Assemblies.Values.Where(a => a.Name == AssemblyName).Cast<ICrmEntity>()
                 .Concat(org.Webhooks.Values.Where(w => w.Name == WebhookName))
+                .Concat(org.ServiceEndpoints.Values.Where(e => e.Name == ServiceEndpointName))
                 .ToArray();
             if (leftovers.Length > 0)
             {

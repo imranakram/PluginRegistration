@@ -377,7 +377,8 @@ namespace Xrm.Sdk.PluginRegistration.Forms
 
             try
             {
-                Parallel.ForEach(assembly.Plugins.Values, (currentPlugin) =>
+                // Sequential: the lists below are plain List<T>, which isn't safe to add to from several threads
+                foreach (var currentPlugin in assembly.Plugins.Values)
                 {
                     var foundPlugin = m_registeredPluginList?.Where(x => x.TypeName.ToLowerInvariant() == currentPlugin.TypeName.ToLowerInvariant()).FirstOrDefault();
                     var alreadyExisted = (m_registeredPluginList != null && foundPlugin != null);
@@ -401,17 +402,17 @@ namespace Xrm.Sdk.PluginRegistration.Forms
                     {
                         removedPluginList.Add(currentPlugin);
                     }
-                });
+                }
 
                 if (m_registeredPluginList != null)
                 {
-                    Parallel.ForEach(m_registeredPluginList, (currentRecord) =>
+                    foreach (var currentRecord in m_registeredPluginList)
                     {
                         if (!assembly.Plugins.Values.ToList().Any(x => x.TypeName.ToLowerInvariant() == currentRecord.TypeName.ToLowerInvariant()))
                         {
                             missingPluginList.Add(currentRecord);
                         }
-                    });
+                    }
                 }
             }
             catch (Exception ex)

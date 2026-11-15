@@ -59,6 +59,7 @@
     <Compile Include="Connections\OrganizationMessageLoadingTests.cs" />
     <Compile Include="RecordingOrganizationService.cs" />
     <Compile Include="Integration\CustomApiLifecycleTests.cs" />
+    <Compile Include="Integration\ServiceEndpointMetadataTests.cs" />
     <Compile Include="Integration\RegistrationLifecycleTests.cs" />
     <Compile Include="Integration\TestBench.cs" />
     <Compile Include="CustomApis\CustomApiServiceTests.cs" />
@@ -71,6 +72,7 @@
     <Compile Include="ManagedIdentities\ManagedIdentityTests.cs" />
     <Compile Include="Progress\ProgressFeedbackTests.cs" />
     <Compile Include="Unregister\UnregisterTests.cs" />
+    <Compile Include="ServiceEndpoints\ServiceEndpointTests.cs" />
     <Compile Include="Webhooks\WebhookTests.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
   </ItemGroup>
