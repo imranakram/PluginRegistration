@@ -13,11 +13,11 @@
 		<license type="expression">MIT</license>
 		<requireLicenseAcceptance>false</requireLicenseAcceptance>
 		<description>
-			The Classic Microsoft Dynamics CRM tool, now in the XrmToolBox suite.
+			Register and manage plug-ins, custom workflow activities, steps, images, plug-in packages, webhooks, Azure service endpoints and Custom APIs in Microsoft Dataverse and Dynamics 365.
 
-			This is special flavor of classical Plugin Registration Tool provided by Microsoft as CRM SDK code sample. It was adopted to the format of an XrmToolBox tool and intended to work with the same set of the Common Data Service / Dynamics 365 / CRM versions as supported by main application.
+			Based on the classic Plug-in Registration Tool that Microsoft published as a Dynamics CRM 2011 SDK sample, ported to XrmToolBox and extended by the community.
 		</description>
-		<summary>The Classic Microsoft Dynamics CRM tool, now in the XrmToolBox suite</summary>
+		<summary>Register plug-ins, steps, images, webhooks, service endpoints and Custom APIs in Dataverse, from XrmToolBox</summary>
 		<releaseNotes>
 New: Custom APIs
 - #173: Register, edit and delete Custom APIs together with their request parameters and response properties, from the Register menu or an API's context menu. Fields that Dataverse fixes after creation are read-only, and managed APIs are protected (thanks @WebbontheWeb)
