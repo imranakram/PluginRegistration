@@ -5,6 +5,7 @@ using System.Drawing;
 using System.Linq;
 using System.Threading.Tasks;
 using System.Windows.Forms;
+using Xrm.Sdk.PluginRegistration.Controls;
 using Xrm.Sdk.PluginRegistration.Helpers;
 using Xrm.Sdk.PluginRegistration.Models;
 using Label = System.Windows.Forms.Label;
@@ -18,7 +19,7 @@ namespace Xrm.Sdk.PluginRegistration.Forms
     public sealed class CustomApiEditorForm : Form
     {
         private readonly IOrganizationService service;
-        private readonly IReadOnlyList<string> tableNames;
+        private readonly CustomApiMetadataCache metadata;
         private readonly CustomApiDefinition original;
         private readonly CustomApiDefinition draft;
         private readonly TabControl tabs = new TabControl { Dock = DockStyle.Fill };
@@ -31,14 +32,18 @@ namespace Xrm.Sdk.PluginRegistration.Forms
         };
         private readonly TextBox displayName = CustomApiFormLayout.Text(100);
         private readonly TextBox description = CustomApiFormLayout.Text(300, true);
-        private readonly TextBox boundTable = CustomApiFormLayout.Text(100);
+        private readonly FilteringComboBox boundTable = CustomApiFormLayout.Search(100);
         private readonly Label boundTableHint = new Label { AutoSize = true, MaximumSize = new Size(540, 0) };
-        private readonly TextBox executePrivilege = CustomApiFormLayout.Text(100);
+        private readonly Label metadataNote = new Label { AutoSize = true, MaximumSize = new Size(540, 0), Visible = false };
+        private readonly FilteringComboBox executePrivilege = CustomApiFormLayout.Search(100);
         private readonly ComboBox binding = CustomApiFormLayout.Choices();
         private readonly ComboBox processing = CustomApiFormLayout.Choices();
         private readonly ComboBox solution = CustomApiFormLayout.Choices();
-        private readonly ComboBox assembly = CustomApiFormLayout.Choices();
-        private readonly ComboBox pluginType = CustomApiFormLayout.Choices();
+        private readonly FilteringComboBox assembly = CustomApiFormLayout.Pick();
+        private readonly FilteringComboBox pluginType = CustomApiFormLayout.Pick();
+        // Keys no assembly or plug-in type can have, so these never match a record.
+        private readonly SearchChoice allAssemblies = new SearchChoice("(All assemblies)", key: new object());
+        private readonly SearchChoice noHandler = new SearchChoice("(None)", key: new object());
         private readonly CheckBox function = new CheckBox { Text = "Function (GET)", AutoSize = true };
         private readonly CheckBox isPrivate = new CheckBox { Text = "Private", AutoSize = true };
         private readonly Button createSolution = CustomApiFormLayout.Button("New solution...");
@@ -56,10 +61,12 @@ namespace Xrm.Sdk.PluginRegistration.Forms
         private bool settingChoices;
 
         public CustomApiEditorForm(IOrganizationService service, CustomApiDefinition original = null,
-            IEnumerable<string> tableNames = null)
+            IEnumerable<string> tableNames = null, CustomApiMetadataCache metadata = null)
         {
             this.service = service ?? throw new ArgumentNullException(nameof(service));
-            this.tableNames = (tableNames ?? Enumerable.Empty<string>()).ToList();
+            this.metadata = metadata;
+            // Usable straight away; the full table list replaces these once it has loaded.
+            boundTable.SetChoices(SearchChoice.FromValues(tableNames));
             this.original = original?.Clone();
             draft = original?.Clone() ?? new CustomApiDefinition();
             Text = original == null ? "Create Custom API" : "Custom API: " + original.UniqueName;
@@ -86,11 +93,14 @@ namespace Xrm.Sdk.PluginRegistration.Forms
             CancelButton = cancel;
             save.Click += SaveClicked;
             reload.Click += async (sender, args) => await LoadChoices();
+            reload.Click += async (sender, args) => await LoadMetadataChoices(reload: true);
+            new ToolTip().SetToolTip(reload, "Reload solutions, plug-in types, tables and privileges.");
             createSolution.Click += CreateSolutionClicked;
             binding.SelectedIndexChanged += (sender, args) => UpdateBindingState();
             solution.SelectedIndexChanged += (sender, args) => ApplyPublisherPrefix();
-            assembly.SelectedIndexChanged += (sender, args) => FilterPluginTypes();
+            assembly.SelectedChoiceChanged += (sender, args) => FilterPluginTypes();
             Shown += async (sender, args) => await LoadChoices();
+            Shown += async (sender, args) => await LoadMetadataChoices(reload: false);
             FormClosing += (sender, args) => { if (saving) args.Cancel = true; };
             save.Enabled = false;
             UpdateBindingState();
@@ -139,13 +149,13 @@ namespace Xrm.Sdk.PluginRegistration.Forms
             }
             CustomApiFormLayout.AddRow(fields, "Description *", description);
             CustomApiFormLayout.AddRow(fields, "Binding type *", binding);
-            CustomApiFormLayout.SuggestTables(boundTable, tableNames);
             CustomApiFormLayout.AddRow(fields, "Bound table logical name", boundTable);
             CustomApiFormLayout.AddRow(fields, string.Empty, boundTableHint);
             CustomApiFormLayout.AddRow(fields, "Allowed processing steps *", processing);
             CustomApiFormLayout.AddRow(fields, "Message type", function);
             CustomApiFormLayout.AddRow(fields, "Visibility", isPrivate);
             CustomApiFormLayout.AddRow(fields, "Execute privilege name", executePrivilege);
+            CustomApiFormLayout.AddRow(fields, string.Empty, metadataNote);
             CustomApiFormLayout.AddRow(fields, "Plug-in assembly", assembly);
             CustomApiFormLayout.AddRow(fields, "Plug-in type", pluginType);
             CustomApiFormLayout.AddRow(fields, string.Empty, new Label
@@ -203,14 +213,15 @@ namespace Xrm.Sdk.PluginRegistration.Forms
             uniqueName.ReadOnly = original != null;
             binding.Enabled = processing.Enabled = function.Enabled = original == null;
             bool protectedApi = original?.IsManaged == true && !original.IsCustomizable;
-            name.ReadOnly = displayName.ReadOnly = description.ReadOnly = executePrivilege.ReadOnly = protectedApi;
+            name.ReadOnly = displayName.ReadOnly = description.ReadOnly = protectedApi;
+            executePrivilege.Enabled = !protectedApi;
             isPrivate.Enabled = assembly.Enabled = pluginType.Enabled = !protectedApi;
         }
 
         private async Task LoadChoices()
         {
             if (busy) return;
-            var currentType = loaded ? (pluginType.SelectedItem as HandlerChoice)?.Id : draft.PluginTypeId;
+            var currentType = loaded ? SelectedHandlerId() : draft.PluginTypeId;
             string currentSolution = (solution.SelectedItem as CustomApiSolutionOption)?.UniqueName;
             SetBusy(true, original == null ? "Loading solutions and plug-in types..." : "Loading plug-in types...");
             try
@@ -225,12 +236,12 @@ namespace Xrm.Sdk.PluginRegistration.Forms
                 solution.SelectedIndex = -1;
                 if (currentSolution != null)
                     solution.SelectedItem = choices.Solutions.FirstOrDefault(s => s.UniqueName == currentSolution);
-                var assemblies = new List<string> { "(All assemblies)" };
-                assemblies.AddRange(pluginTypes.Select(p => p.AssemblyName ?? string.Empty).Distinct().OrderBy(n => n));
-                assembly.DataSource = assemblies;
+                // One entry per assembly record: the same name can be registered in several major versions.
+                assembly.SetChoices(pluginTypes.GroupBy(p => p.AssemblyKey)
+                    .Select(group => new SearchChoice(group.First().AssemblyLabel, null, group.Key)), allAssemblies);
                 // Open on the current handler's assembly; with no handler, list every assembly's types.
                 var handler = pluginTypes.FirstOrDefault(p => p.Id == currentType);
-                assembly.SelectedIndex = handler == null ? 0 : assemblies.IndexOf(handler.AssemblyName ?? string.Empty);
+                assembly.SelectChoice(handler == null ? null : new SearchChoice(handler.AssemblyLabel, null, handler.AssemblyKey));
                 settingChoices = false;
                 PopulatePluginTypes(currentType);
                 ApplyPublisherPrefix();
@@ -265,38 +276,78 @@ namespace Xrm.Sdk.PluginRegistration.Forms
         private void FilterPluginTypes()
         {
             if (settingChoices) return;
-            PopulatePluginTypes((pluginType.SelectedItem as HandlerChoice)?.Id);
+            PopulatePluginTypes(SelectedHandlerId());
         }
+
+        private Guid? SelectedHandlerId() => pluginType.SelectedChoice?.Key as Guid?;
 
         private void PopulatePluginTypes(Guid? selectedId)
         {
-            var types = pluginTypes.AsEnumerable();
-            if (assembly.SelectedIndex > 0)
-                types = types.Where(p => (p.AssemblyName ?? string.Empty) == (string)assembly.SelectedItem);
-            var choices = new List<HandlerChoice> { new HandlerChoice { Name = "(None)" } };
-            choices.AddRange(types.Select(p => new HandlerChoice { Id = p.Id, Name = p.Name }));
-            if (selectedId.HasValue && choices.All(p => p.Id != selectedId))
+            var filter = assembly.SelectedChoice;
+            var types = filter == null || filter == allAssemblies
+                ? pluginTypes : pluginTypes.Where(p => Equals(p.AssemblyKey, filter.Key)).ToList();
+            // A type name found in more than one assembly version gets its version, so the box tells them apart.
+            var shared = new HashSet<string>(pluginTypes.GroupBy(p => p.Name, StringComparer.OrdinalIgnoreCase)
+                .Where(group => group.Count() > 1).Select(group => group.Key), StringComparer.OrdinalIgnoreCase);
+            var choices = types.Select(p => HandlerChoice(p, shared.Contains(p.Name) ? null : string.Empty)).ToList();
+            if (selectedId.HasValue && types.All(p => p.Id != selectedId))
             {
                 // Browsing assemblies must not silently remove the current handler from the draft.
                 var retained = pluginTypes.FirstOrDefault(p => p.Id == selectedId.Value);
                 if (retained != null)
-                    choices.Add(new HandlerChoice { Id = retained.Id, Name = retained.Name + " (selected; another assembly)" });
+                    choices.Add(HandlerChoice(retained, " (selected; another assembly)"));
             }
-            pluginType.DisplayMember = "Name";
-            pluginType.DataSource = choices;
-            pluginType.SelectedItem = choices.FirstOrDefault(p => p.Id == selectedId) ?? choices[0];
+            pluginType.SetChoices(choices, noHandler);
+            pluginType.SelectChoice(selectedId.HasValue ? new SearchChoice(string.Empty, null, selectedId.Value) : null);
+        }
+
+        /// <summary>
+        /// A plug-in type to pick, with its assembly and version in grey. The suffix is added to the
+        /// name; null adds the version instead, for a name that more than one assembly has.
+        /// </summary>
+        private static SearchChoice HandlerChoice(CustomApiPluginTypeOption type, string suffix)
+        {
+            string version = string.IsNullOrEmpty(type.AssemblyVersion) ? string.Empty : " (" + type.AssemblyVersion + ")";
+            return new SearchChoice(type.Name + (suffix ?? version), type.AssemblyLabel, type.Id);
         }
 
         private void UpdateBindingState()
         {
             bool global = binding.SelectedItem is CustomApiBindingType selected && selected == CustomApiBindingType.Global;
-            boundTable.ReadOnly = original != null || global;
-            boundTable.Enabled = !global;
+            // A combo box has no read-only state; disabled still shows the fixed value.
+            boundTable.Enabled = original == null && !global;
             boundTableHint.Text = original != null
                 ? "Binding type and bound table are fixed after the API is created."
                 : global ? "Global APIs have no bound table. Choose Entity or EntityCollection to enter a table."
-                : "Enter a table logical name; matching tables are suggested as you type. A bound table is required.";
-            if (original == null && global) boundTable.Clear();
+                : "Type to search tables by logical or display name, or enter a logical name. A bound table is required.";
+            if (original == null && global) boundTable.Text = string.Empty;
+        }
+
+        /// <summary>
+        /// Fills the table and privilege pickers from the connection's cache. This runs beside
+        /// <see cref="LoadChoices"/> and never blocks the dialog: both fields accept typed values meanwhile.
+        /// </summary>
+        private async Task LoadMetadataChoices(bool reload)
+        {
+            if (metadata == null) return;
+            CustomApiMetadata loadedMetadata;
+            try
+            {
+                loadedMetadata = await metadata.GetAsync(reload);
+            }
+            catch (Exception)
+            {
+                return;
+            }
+            if (IsDisposed) return;
+            if (loadedMetadata.TableError == null) boundTable.SetChoices(loadedMetadata.Tables);
+            if (loadedMetadata.PrivilegeError == null) executePrivilege.SetChoices(loadedMetadata.Privileges);
+            metadataNote.Text = loadedMetadata.TableError != null && loadedMetadata.PrivilegeError != null
+                ? "Tables and privileges could not be loaded. Type the names, or use Reload choices to retry."
+                : loadedMetadata.TableError != null ? "The table list could not be loaded, so only tables with SDK messages are suggested. Use Reload choices to retry."
+                : loadedMetadata.PrivilegeError != null ? "Privileges could not be loaded. Type the privilege name, or use Reload choices to retry."
+                : string.Empty;
+            metadataNote.Visible = metadataNote.Text.Length > 0;
         }
 
         private CustomApiDefinition CaptureDraft()
@@ -316,7 +367,7 @@ namespace Xrm.Sdk.PluginRegistration.Forms
                 ? selectedProcessing : (CustomApiProcessingStepType)(-1);
             candidate.IsFunction = function.Checked;
             candidate.IsPrivate = isPrivate.Checked;
-            candidate.PluginTypeId = (pluginType.SelectedItem as HandlerChoice)?.Id;
+            candidate.PluginTypeId = SelectedHandlerId();
             return candidate;
         }
 
@@ -389,7 +440,7 @@ namespace Xrm.Sdk.PluginRegistration.Forms
                 : new CustomApiResponseProperty { Type = CustomApiParameterType.String });
             // Pass the draft lists themselves for duplicate checks, and copy current binding fields.
             draft.BindingType = binding.SelectedItem is CustomApiBindingType selected ? selected : CustomApiBindingType.Global;
-            using (var dialog = new CustomApiParameterForm(draft, original, parameter, tableNames))
+            using (var dialog = new CustomApiParameterForm(draft, original, parameter, boundTable.Choices))
             {
                 if (dialog.ShowDialog(this) != DialogResult.OK) return;
                 if (request)
@@ -472,12 +523,6 @@ namespace Xrm.Sdk.PluginRegistration.Forms
         private void ShowError(Exception error)
         {
             MessageBox.Show(this, error.Message, Text, MessageBoxButtons.OK, MessageBoxIcon.Error);
-        }
-
-        private sealed class HandlerChoice
-        {
-            public Guid? Id { get; set; }
-            public string Name { get; set; }
         }
     }
 }

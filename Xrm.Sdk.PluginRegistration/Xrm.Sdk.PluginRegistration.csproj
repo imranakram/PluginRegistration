@@ -131,6 +131,7 @@
     <Compile Include="Extensions\EnumExtensions.cs" />
     <Compile Include="Helpers\CustomApiMapping.cs" />
     <Compile Include="Helpers\CustomApiEditorData.cs" />
+    <Compile Include="Helpers\CustomApiMetadata.cs" />
     <Compile Include="Forms\CustomApiEditorForm.cs" />
     <Compile Include="Forms\CustomApiParameterForm.cs" />
     <Compile Include="Forms\ServiceEndpointRegistrationForm.cs">
@@ -273,6 +274,9 @@
     </Compile>
     <Compile Include="Forms\PluginRegistrationForm.Designer.cs">
       <DependentUpon>PluginRegistrationForm.cs</DependentUpon>
+    </Compile>
+    <Compile Include="Controls\FilteringComboBox.cs">
+      <SubType>Component</SubType>
     </Compile>
     <Compile Include="Controls\CheckBoxSafeTreeView.cs">
       <SubType>Component</SubType>

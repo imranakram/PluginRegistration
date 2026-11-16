@@ -61,6 +61,7 @@
     <Compile Include="Connections\OrganizationMessageLoadingTests.cs" />
     <Compile Include="RecordingOrganizationService.cs" />
     <Compile Include="Integration\CustomApiLifecycleTests.cs" />
+    <Compile Include="Integration\CustomApiMetadataLoadTests.cs" />
     <Compile Include="Integration\ServiceEndpointMetadataTests.cs" />
     <Compile Include="Integration\RegistrationLifecycleTests.cs" />
     <Compile Include="Integration\TestBench.cs" />
@@ -69,6 +70,8 @@
     <Compile Include="CustomApis\CustomApiTreeTests.cs" />
     <Compile Include="CustomApis\CustomApiMainControlTests.cs" />
     <Compile Include="CustomApis\CustomApiEditorFormTests.cs" />
+    <Compile Include="CustomApis\CustomApiMetadataTests.cs" />
+    <Compile Include="CustomApis\CustomApiHandlerPickerTests.cs" />
     <Compile Include="CustomApis\OrganizationMessageCacheTests.cs" />
     <Compile Include="CustomApis\CustomApiValidatorTests.cs" />
     <Compile Include="ManagedIdentities\ManagedIdentityTests.cs" />

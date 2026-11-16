@@ -101,6 +101,7 @@ namespace Xrm.Sdk.PluginRegistration
             int generation = connectionGeneration;
             var service = organization.OrganizationService;
             var tableNames = CustomApiTableNames(organization);
+            var metadata = CustomApiMetadataFor(organization);
             // Block repeated opens while the definition loads, as RefreshFullTreeView does.
             SetRegistrationControlsEnabled(false);
             WorkAsync(new WorkAsyncInfo
@@ -116,7 +117,7 @@ namespace Xrm.Sdk.PluginRegistration
                         ErrorMessageForm.ShowErrorMessageBox(this, "Unable to load the Custom API.", "Custom API", args.Error);
                         return;
                     }
-                    using (var editor = new CustomApiEditorForm(service, (CustomApiDefinition)args.Result, tableNames))
+                    using (var editor = new CustomApiEditorForm(service, (CustomApiDefinition)args.Result, tableNames, metadata))
                     {
                         editor.ShowDialog(ParentForm);
                         if ((editor.Saved || editor.SaveOutcomeUnknown) && generation == connectionGeneration)
@@ -166,6 +167,25 @@ namespace Xrm.Sdk.PluginRegistration
                 .OrderBy(table => table, StringComparer.OrdinalIgnoreCase)
                 .ToList();
         }
+
+        /// <summary>
+        /// Tables and privileges for the Custom API pickers, read once per connection. A new
+        /// connection gets a new cache; Reload choices in the editor reads them again.
+        /// </summary>
+        private CustomApiMetadataCache CustomApiMetadataFor(CrmOrganization organization)
+        {
+            var service = organization.OrganizationService;
+            if (customApiMetadata == null || customApiMetadataGeneration != connectionGeneration ||
+                !ReferenceEquals(customApiMetadata.Service, service))
+            {
+                customApiMetadata = new CustomApiMetadataCache(service);
+                customApiMetadataGeneration = connectionGeneration;
+            }
+            return customApiMetadata;
+        }
+
+        private CustomApiMetadataCache customApiMetadata;
+        private int customApiMetadataGeneration;
 
         private void DeleteCustomApi(CrmCustomApiNode api)
         {

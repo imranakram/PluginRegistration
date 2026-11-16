@@ -25,6 +25,8 @@ New: Custom APIs
 - #173: A new API is created in an unmanaged solution that you pick or create, with the publisher prefix applied to its unique name. Parameters added later join the solutions the API is in
 - #173: Add to Solution adds an API with all its parameters and properties in one go
 - #173: Steps can be registered and edited on private Custom APIs
+- The bound table and execute privilege are searchable lists: type part of a table's logical or display name, or of a privilege name. Both are read once per connection; Reload choices reads them again, for example after adding a table. Names that aren't listed can still be typed
+- The plug-in assembly and plug-in type are searchable too, and show the assembly version, so assemblies with the same name in different major versions can be told apart
 
 New: managed identities (Dataverse online only)
 - Link a managed identity to a plug-in assembly or package from its context menu or the toolbar, and create, edit or delete identities from the same dialog. New identities use version 2, which Microsoft recommends. Based on Plugin Identity Manager by David Rivard (https://github.com/drivardxrm/Driv.XTB.PluginIdentityManager), with thanks
