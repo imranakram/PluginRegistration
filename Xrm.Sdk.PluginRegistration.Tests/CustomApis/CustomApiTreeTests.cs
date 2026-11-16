@@ -58,6 +58,23 @@ namespace Xrm.Sdk.PluginRegistration.Tests.CustomApis
             }
         }
 
+        [Test, Apartment(ApartmentState.STA)]
+        public void RegisterNewCustomApiFollowsTheOtherRegisterItems()
+        {
+            using (var control = new MainControl())
+            {
+                foreach (var menu in new[] { "toolRegister", "mnuContextNode", "mnuContextGeneral" })
+                {
+                    var owner = typeof(MainControl).GetField(menu, BindingFlags.Instance | BindingFlags.NonPublic).GetValue(control);
+                    var items = (owner as ToolStripDropDownItem)?.DropDownItems ?? ((ToolStrip)owner).Items;
+                    var texts = items.Cast<ToolStripItem>().Select(item => item.Text.Replace("&", "")).ToList();
+                    int api = texts.IndexOf("Register New Custom API");
+                    int lastOther = texts.FindLastIndex(text => text.StartsWith("Register New ") && text != "Register New Custom API");
+                    Assert.That(api, Is.EqualTo(lastOther + 1), menu);
+                }
+            }
+        }
+
         [Test]
         public void ApiWithoutGeneratedMessageOrStepsStillHasItsOwnIdentity()
         {

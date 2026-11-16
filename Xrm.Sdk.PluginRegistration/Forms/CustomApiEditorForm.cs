@@ -228,7 +228,9 @@ namespace Xrm.Sdk.PluginRegistration.Forms
                 var assemblies = new List<string> { "(All assemblies)" };
                 assemblies.AddRange(pluginTypes.Select(p => p.AssemblyName ?? string.Empty).Distinct().OrderBy(n => n));
                 assembly.DataSource = assemblies;
-                assembly.SelectedIndex = 0;
+                // Open on the current handler's assembly; with no handler, list every assembly's types.
+                var handler = pluginTypes.FirstOrDefault(p => p.Id == currentType);
+                assembly.SelectedIndex = handler == null ? 0 : assemblies.IndexOf(handler.AssemblyName ?? string.Empty);
                 settingChoices = false;
                 PopulatePluginTypes(currentType);
                 ApplyPublisherPrefix();
