@@ -78,7 +78,7 @@ namespace Xrm.Sdk.PluginRegistration.Helpers
         {
             var query = new QueryExpression(CustomApiMapping.ApiTable)
             {
-                ColumnSet = new ColumnSet("customapiid", "name", "uniquename", "sdkmessageid", "ismanaged"),
+                ColumnSet = new ColumnSet("customapiid", "name", "uniquename", "sdkmessageid", "ismanaged", "allowedcustomprocessingsteptype"),
                 PageInfo = new PagingInfo { PageNumber = 1, Count = 5000 }
             };
             query.AddOrder("uniquename", OrderType.Ascending);
@@ -88,7 +88,8 @@ namespace Xrm.Sdk.PluginRegistration.Helpers
                 Name = entity.GetAttributeValue<string>("name"),
                 UniqueName = entity.GetAttributeValue<string>("uniquename"),
                 SdkMessageId = entity.GetAttributeValue<EntityReference>("sdkmessageid")?.Id,
-                IsManaged = entity.GetAttributeValue<bool>("ismanaged")
+                IsManaged = entity.GetAttributeValue<bool>("ismanaged"),
+                AllowedCustomProcessingStepType = (CustomApiProcessingStepType?)entity.GetAttributeValue<OptionSetValue>("allowedcustomprocessingsteptype")?.Value
             }).ToList();
         }
 

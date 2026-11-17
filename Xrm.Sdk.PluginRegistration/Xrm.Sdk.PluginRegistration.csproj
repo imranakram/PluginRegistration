@@ -131,6 +131,9 @@
     <Compile Include="Extensions\EnumExtensions.cs" />
     <Compile Include="Helpers\CustomApiMapping.cs" />
     <Compile Include="Helpers\CustomApiEditorData.cs" />
+    <Compile Include="Helpers\CustomApiMetadata.cs" />
+    <Compile Include="Helpers\ImageSupport.cs" />
+    <Compile Include="Helpers\StepMessageChoices.cs" />
     <Compile Include="Forms\CustomApiEditorForm.cs" />
     <Compile Include="Forms\CustomApiParameterForm.cs" />
     <Compile Include="Forms\ServiceEndpointRegistrationForm.cs">
@@ -273,6 +276,9 @@
     </Compile>
     <Compile Include="Forms\PluginRegistrationForm.Designer.cs">
       <DependentUpon>PluginRegistrationForm.cs</DependentUpon>
+    </Compile>
+    <Compile Include="Controls\FilteringComboBox.cs">
+      <SubType>Component</SubType>
     </Compile>
     <Compile Include="Controls\CheckBoxSafeTreeView.cs">
       <SubType>Component</SubType>
@@ -500,6 +506,7 @@
     <Content Include="Images\Export.gif" />
     <Content Include="Images\Import.gif" />
     <Content Include="Images\register.png" />
+    <Content Include="Images\customapi.png" />
     <Content Include="Images\Save.png" />
     <Content Include="Images\Search.png" />
     <Content Include="Images\ServiceEndpoint.png" />
@@ -510,7 +517,7 @@
     <Content Include="Images\StepsAllDisabled.png" />
     <Content Include="Images\StepsAllEnabled.png" />
     <Content Include="Images\UninstallProfiler.gif" />
-    <Content Include="Images\Update.gif" />
+    <Content Include="Images\update.png" />
     <None Include="Images\ImportExport.gif" />
     <Content Include="Images\StepEnabled.png" />
     <Content Include="Images\View.png" />

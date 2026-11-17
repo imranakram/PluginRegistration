@@ -17,7 +17,9 @@
 
 namespace Xrm.Sdk.PluginRegistration.Forms
 {
+    using Controls;
     using Helpers;
+    using Models;
     using System;
     using System.Collections.Generic;
     using System.ComponentModel;
@@ -29,6 +31,8 @@ namespace Xrm.Sdk.PluginRegistration.Forms
         #region Private Fields
 
         private CrmPluginStep m_currentStep;
+        private readonly IReadOnlyList<CustomApiSummary> m_customApis;
+        private Label lblStepLimit;
         private CrmMessage m_message = null;
         private string m_messageEntityPrimaryRetrieved = null;
         private CrmMessageEntity m_messageEntityRetrieved = null;
@@ -68,6 +72,7 @@ namespace Xrm.Sdk.PluginRegistration.Forms
             m_org = org;
             m_orgControl = orgControl;
             m_currentStep = step;
+            m_customApis = orgControl.CustomApiSummaries;
 
             #region Initialization of crmFilteringAttributes
 
@@ -98,17 +103,27 @@ namespace Xrm.Sdk.PluginRegistration.Forms
             InitializeComponent();
             this.grpGeneral.Controls.Add(this.crmFilteringAttributes);
 
+            //Explains a Custom API's limit on the step, in the free space under the stage
+            lblStepLimit = new Label
+            {
+                Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right,
+                Location = new System.Drawing.Point(0, grpStage.Bottom + 4),
+                Name = "lblStepLimit",
+                Size = new System.Drawing.Size(pnlLeftColumn.ClientSize.Width, chkDeleteAsyncOperationIfSuccessful.Top - grpStage.Bottom - 6),
+                Visible = false
+            };
+            pnlLeftColumn.Controls.Add(lblStepLimit);
+
             CaptureFilteringAttributesLayout();
             this.crmFilteringAttributes.AttributesChanged += new EventHandler<EventArgs>(this.crmFilteringAttributes_AttributesChanged);
             this.pnlLeftColumn.SizeChanged += new EventHandler(this.pnlLeftColumn_SizeChanged);
 
-            //Initialize the auto-complete on the Message field
-            var msgList = new AutoCompleteStringCollection();
-            foreach (CrmMessage msg in org.Messages.Values)
-            {
-                msgList.Add(msg.Name);
-            }
-            txtMessageName.AutoCompleteCustomSource = msgList;
+            //Message and Primary Entity search as you type, in the name or the grey detail, and always hold a listed value
+            txtMessageName.RestrictToChoices = true;
+            txtPrimaryEntity.RestrictToChoices = true;
+            txtMessageName.SetChoices(StepMessageChoices.Messages(org.Messages.Values, m_customApis));
+            txtMessageName.SelectedChoiceChanged += (sender, args) => LoadEntities();
+            txtPrimaryEntity.SelectedChoiceChanged += (sender, args) => RefreshEntityDependentControls();
 
             //Check whether system plugins should be added to the list
             if (plugin != null && step != null && org[step.AssemblyId][step.PluginId].IsSystemCrmEntity && (!OrganizationHelper.AllowStepRegistrationForPlugin(plugin)))
@@ -238,17 +253,20 @@ namespace Xrm.Sdk.PluginRegistration.Forms
 
             if (m_currentStep != null)
             {
-                txtMessageName.Text = m_org.Messages[m_currentStep.MessageId].Name;
+                CrmMessage stepMessage = m_org.Messages[m_currentStep.MessageId];
+                txtMessageName.SelectChoice(new SearchChoice(stepMessage.Name, key: stepMessage.MessageId));
+                //The tables to pick from are the message's
+                LoadEntities();
 
                 if (org.MessageEntities.ContainsKey(m_currentStep.MessageEntityId))
                 {
                     CrmMessageEntity msgEntity = Message[m_currentStep.MessageEntityId];
-                    txtPrimaryEntity.Text = msgEntity.PrimaryEntity;
+                    txtPrimaryEntity.SelectChoice(new SearchChoice(msgEntity.PrimaryEntity));
                     txtSecondaryEntity.Text = msgEntity.SecondaryEntity;
                 }
                 else
                 {
-                    txtPrimaryEntity.Text = "none";
+                    txtPrimaryEntity.SelectChoice(new SearchChoice("none"));
                     txtSecondaryEntity.Text = "none";
                 }
 
@@ -436,6 +454,7 @@ namespace Xrm.Sdk.PluginRegistration.Forms
 
             LoadEntities();
             CheckDeploymentSupported();
+            ApplyCustomApiStepLimit();
         }
 
         #endregion Public Constructors
@@ -446,7 +465,7 @@ namespace Xrm.Sdk.PluginRegistration.Forms
         {
             get
             {
-                if (txtMessageName.TextLength != 0)
+                if (txtMessageName.Text.Length != 0)
                 {
                     string message = txtMessageName.Text.Trim();
                     if (!message.Equals(m_messageRetrieved, StringComparison.InvariantCultureIgnoreCase))
@@ -960,6 +979,33 @@ namespace Xrm.Sdk.PluginRegistration.Forms
             radStagePreOperation.Enabled = enable2011Controls;
             radStagePostOperation.Enabled = enable2011Controls;
             radStagePostOperationDeprecated.Enabled = enableV4Controls;
+            ApplyCustomApiStepLimit();
+        }
+
+        /// <summary>
+        /// The message of an Async Only Custom API takes only asynchronous Post-operation steps, so the
+        /// form fixes those and says why. Any other message leaves the choices free.
+        /// </summary>
+        private void ApplyCustomApiStepLimit()
+        {
+            if (lblStepLimit == null)
+            {
+                return;
+            }
+
+            CustomApiStepLimit limit = StepMessageChoices.LimitFor(Message?.MessageId, m_customApis);
+            bool asyncOnly = limit != null;
+            if (asyncOnly)
+            {
+                radModeAsync.Checked = true;
+                radStagePostOperation.Checked = true;
+            }
+
+            radModeSync.Enabled = !asyncOnly;
+            radStagePreValidation.Enabled = !asyncOnly;
+            radStagePreOperation.Enabled = !asyncOnly;
+            lblStepLimit.Text = limit?.Hint ?? string.Empty;
+            lblStepLimit.Visible = asyncOnly;
         }
 
         private string GenerateDescription()
@@ -1038,41 +1084,34 @@ namespace Xrm.Sdk.PluginRegistration.Forms
 
             Control activeControl = ActiveControl;
 
-            if (Message == null)
+            //A table the new message also has stays picked; a message with a single table, such as
+            //"none" for a message without one, picks it
+            List<SearchChoice> primaryList = StepMessageChoices.PrimaryEntities(Message);
+            txtPrimaryEntity.SetChoices(primaryList);
+            if (txtPrimaryEntity.SelectedChoice == null && primaryList.Count == 1)
             {
-                txtPrimaryEntity.AutoCompleteCustomSource = new AutoCompleteStringCollection();
-                txtSecondaryEntity.AutoCompleteCustomSource = new AutoCompleteStringCollection();
-
-                if (activeControl != null)
-                {
-                    activeControl.Focus();
-                }
-                return;
+                txtPrimaryEntity.SelectChoice(primaryList[0]);
             }
-            else
+
+            AutoCompleteStringCollection secondaryList = new AutoCompleteStringCollection();
+            if (Message != null)
             {
-                AutoCompleteStringCollection primaryList = new AutoCompleteStringCollection();
-                AutoCompleteStringCollection secondaryList = new AutoCompleteStringCollection();
                 foreach (CrmMessageEntity entity in Message.FindMessageEntities(null, null))
                 {
-                    if (!string.IsNullOrEmpty(entity.PrimaryEntity))
-                    {
-                        primaryList.Add(entity.PrimaryEntity);
-                    }
-
                     if (!string.IsNullOrEmpty(entity.SecondaryEntity))
                     {
                         secondaryList.Add(entity.SecondaryEntity);
                     }
                 }
+            }
+            txtSecondaryEntity.AutoCompleteCustomSource = secondaryList;
 
-                txtPrimaryEntity.AutoCompleteCustomSource = primaryList;
-                txtSecondaryEntity.AutoCompleteCustomSource = secondaryList;
+            RefreshEntityDependentControls();
+            ApplyCustomApiStepLimit();
 
-                if (activeControl != null)
-                {
-                    activeControl.Focus();
-                }
+            if (activeControl != null)
+            {
+                activeControl.Focus();
             }
         }
 
@@ -1086,6 +1125,11 @@ namespace Xrm.Sdk.PluginRegistration.Forms
         }
 
         private void MessageEntityData_Leave(object sender, EventArgs e)
+        {
+            RefreshEntityDependentControls();
+        }
+
+        private void RefreshEntityDependentControls()
         {
             if (MessageEntity != null)
             {
@@ -1170,7 +1214,7 @@ namespace Xrm.Sdk.PluginRegistration.Forms
 
         private void txtMessageName_Validating(object sender, CancelEventArgs e)
         {
-            if (txtMessageName.TextLength != 0 && Message == null)
+            if (txtMessageName.Text.Length != 0 && Message == null)
             {
                 MessageBox.Show("Invalid Message Name specified. Please re-enter the message name",
                     "Invalid Message Name", MessageBoxButtons.OK, MessageBoxIcon.Warning);

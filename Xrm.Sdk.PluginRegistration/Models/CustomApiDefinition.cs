@@ -115,5 +115,8 @@ namespace Xrm.Sdk.PluginRegistration.Models
         public string UniqueName { get; set; }
         public Guid? SdkMessageId { get; set; }
         public bool IsManaged { get; set; }
+
+        /// <summary>Which steps other plug-ins can register on the API's message; null when not read.</summary>
+        public CustomApiProcessingStepType? AllowedCustomProcessingStepType { get; set; }
     }
 }

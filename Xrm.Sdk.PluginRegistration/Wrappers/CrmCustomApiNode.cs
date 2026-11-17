@@ -35,8 +35,8 @@ namespace Xrm.Sdk.PluginRegistration.Wrappers
         [Browsable(false)] public string NodeText => "(Custom API) " + UniqueName;
         [Browsable(false)] public string NodeTypeLabel => "Custom API";
         [Browsable(false)] public CrmTreeNodeType NodeType => CrmTreeNodeType.CustomApi;
-        [Browsable(false)] public CrmTreeNodeImageType NodeImageType => CrmTreeNodeImageType.Message;
-        [Browsable(false)] public CrmTreeNodeImageType NodeSelectedImageType => CrmTreeNodeImageType.MessageSelected;
+        [Browsable(false)] public CrmTreeNodeImageType NodeImageType => CrmTreeNodeImageType.CustomApi;
+        [Browsable(false)] public CrmTreeNodeImageType NodeSelectedImageType => CrmTreeNodeImageType.CustomApiSelected;
         [Browsable(false)] public List<ICrmTreeNode> NodeChildren => steps.Values.Cast<ICrmTreeNode>().ToList();
 
         public void AddStep(CrmPluginStep step)

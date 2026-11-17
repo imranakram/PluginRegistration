@@ -60,6 +60,8 @@ namespace Xrm.Sdk.PluginRegistration.Controls
         PackageSelected,
         WebHook,
         WebHookSelected,
+        CustomApi,
+        CustomApiSelected,
     }
 
     [Flags]
@@ -166,7 +168,14 @@ namespace Xrm.Sdk.PluginRegistration.Controls
 
             //Use the image provided in the nodeImages dictionary. If it is not given,
             //use the image that is in the Resources.resX file.
-            ImageList imageList = new ImageList();
+            //The list's defaults, 16 pixels in 256 colours, made every icon look rough: keep full colour and
+            //alpha, and scale each icon smoothly to the size the rows show.
+            int iconSize = TreeIconSize(DeviceDpi);
+            ImageList imageList = new ImageList
+            {
+                ColorDepth = ColorDepth.Depth32Bit,
+                ImageSize = new Size(iconSize, iconSize)
+            };
             List<CrmTreeNodeImageType> loadImageList = new List<CrmTreeNodeImageType>();
             foreach (CrmTreeNodeImageType type in Enum.GetValues(typeof(CrmTreeNodeImageType)))
             {
@@ -176,7 +185,7 @@ namespace Xrm.Sdk.PluginRegistration.Controls
                 }
                 else
                 {
-                    imageList.Images.Add(type.ToString(), nodeImages[type]);
+                    imageList.Images.Add(type.ToString(), FitIcon(nodeImages[type], iconSize));
                 }
             }
 
@@ -187,7 +196,7 @@ namespace Xrm.Sdk.PluginRegistration.Controls
                 loadedImageList = CrmResources.LoadImage(loadImageList.ToArray());
                 foreach (KeyValuePair<CrmTreeNodeImageType, Image> imgInfo in loadedImageList)
                 {
-                    imageList.Images.Add(imgInfo.Key.ToString(), imgInfo.Value);
+                    imageList.Images.Add(imgInfo.Key.ToString(), FitIcon(imgInfo.Value, iconSize));
                 }
             }
             catch (Exception)
@@ -211,6 +220,29 @@ namespace Xrm.Sdk.PluginRegistration.Controls
         }
 
         #endregion Public Constructors
+
+        /// <summary>The tree's icon size in pixels: 20 at 100% display scaling, growing with it.</summary>
+        public static int TreeIconSize(int dpi) => (int)Math.Round(20 * Math.Max(dpi, 96) / 96.0);
+
+        /// <summary>
+        /// The icon drawn smoothly at <paramref name="size"/> pixels, keeping its proportions and centred. The
+        /// image list's own resizing is nearest-pixel, which is what made the icons jagged.
+        /// </summary>
+        public static Image FitIcon(Image image, int size)
+        {
+            if (image == null) return null;
+            var fitted = new Bitmap(size, size);
+            using (var graphics = Graphics.FromImage(fitted))
+            {
+                graphics.InterpolationMode = System.Drawing.Drawing2D.InterpolationMode.HighQualityBicubic;
+                graphics.PixelOffsetMode = System.Drawing.Drawing2D.PixelOffsetMode.HighQuality;
+                graphics.CompositingQuality = System.Drawing.Drawing2D.CompositingQuality.HighQuality;
+                float scale = Math.Min((float)size / image.Width, (float)size / image.Height);
+                float width = image.Width * scale, height = image.Height * scale;
+                graphics.DrawImage(image, (size - width) / 2, (size - height) / 2, width, height);
+            }
+            return fitted;
+        }
 
         #region Public Events
 

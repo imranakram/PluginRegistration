@@ -10,6 +10,7 @@ using System.Diagnostics;
 using Microsoft.Xrm.Sdk;
 using Microsoft.Xrm.Sdk.Messages;
 using Label = System.Windows.Forms.Label;
+using Xrm.Sdk.PluginRegistration.Controls;
 using Xrm.Sdk.PluginRegistration.Forms;
 using Xrm.Sdk.PluginRegistration.Helpers;
 using Xrm.Sdk.PluginRegistration.Models;
@@ -155,17 +156,16 @@ namespace Xrm.Sdk.PluginRegistration.Tests.CustomApis
         {
             using (var dialog = new CustomApiEditorForm(new RecordingOrganizationService(), null, new[] { "account", "contact" }))
             {
-                var table = Field<TextBox>(dialog, "boundTable");
+                var table = Field<FilteringComboBox>(dialog, "boundTable");
                 var binding = Field<ComboBox>(dialog, "binding");
-                Assert.That(table.AutoCompleteMode, Is.EqualTo(AutoCompleteMode.Suggest));
-                Assert.That(table.AutoCompleteSource, Is.EqualTo(AutoCompleteSource.CustomSource));
-                Assert.That(table.AutoCompleteCustomSource.Cast<string>(), Is.EqualTo(new[] { "account", "contact" }));
+                Assert.That(table.DropDownStyle, Is.EqualTo(ComboBoxStyle.DropDown), "Typed table names must still be accepted.");
+                Assert.That(table.Choices.Select(choice => choice.Value), Is.EqualTo(new[] { "account", "contact" }));
                 Assert.That(table.Enabled, Is.False);
                 Assert.That(Field<Label>(dialog, "boundTableHint").Text, Does.Contain("Global APIs have no bound table"));
                 foreach (var type in new[] { CustomApiBindingType.Entity, CustomApiBindingType.EntityCollection })
                 {
                     binding.SelectedItem = type;
-                    Assert.That(table.Enabled && !table.ReadOnly, Is.True);
+                    Assert.That(table.Enabled, Is.True);
                     table.Text = "account";
                     Assert.That(Invoke<CustomApiDefinition>(dialog, "CaptureDraft").BoundEntityLogicalName, Is.EqualTo("account"));
                 }
@@ -182,8 +182,8 @@ namespace Xrm.Sdk.PluginRegistration.Tests.CustomApis
             original.BoundEntityLogicalName = "account";
             using (var dialog = new CustomApiEditorForm(new RecordingOrganizationService(), original))
             {
-                Assert.That(Field<TextBox>(dialog, "boundTable").Text, Is.EqualTo("account"));
-                Assert.That(Field<TextBox>(dialog, "boundTable").ReadOnly, Is.True);
+                Assert.That(Field<FilteringComboBox>(dialog, "boundTable").Text, Is.EqualTo("account"));
+                Assert.That(Field<FilteringComboBox>(dialog, "boundTable").Enabled, Is.False);
                 Assert.That(Field<Label>(dialog, "boundTableHint").Text, Does.Contain("fixed after"));
             }
         }
@@ -327,13 +327,12 @@ namespace Xrm.Sdk.PluginRegistration.Tests.CustomApis
             using (var dialog = new CustomApiParameterForm(SavedApi(), null, child, new[] { "account" }))
             {
                 var type = Field<ComboBox>(dialog, "type");
-                var logicalName = Field<TextBox>(dialog, "logicalName");
+                var logicalName = Field<FilteringComboBox>(dialog, "logicalName");
                 type.SelectedItem = CustomApiParameterType.Entity;
                 logicalName.Text = "account";
                 type.SelectedItem = selectedType;
                 Assert.That(logicalName.Enabled, Is.EqualTo(allowsTable));
-                Assert.That(logicalName.ReadOnly, Is.EqualTo(!allowsTable));
-                Assert.That(logicalName.AutoCompleteCustomSource.Cast<string>(), Is.EqualTo(new[] { "account" }));
+                Assert.That(logicalName.Choices.Select(choice => choice.Value), Is.EqualTo(new[] { "account" }));
                 Assert.That(logicalName.Text, Is.EqualTo(allowsTable ? "account" : ""));
                 Assert.That(Field<Label>(dialog, "tableHint").Text,
                     Does.Contain(allowsTable ? "Leave blank for any table" : "does not support"));
@@ -351,7 +350,7 @@ namespace Xrm.Sdk.PluginRegistration.Tests.CustomApis
             {
                 using (var dialog = new CustomApiParameterForm(SavedApi(), null, child))
                 {
-                    Field<TextBox>(dialog, "logicalName").Text = table;
+                    Field<FilteringComboBox>(dialog, "logicalName").Text = table;
                     Invoke<object>(dialog, "AcceptClicked", null, EventArgs.Empty);
                     Assert.That(dialog.DialogResult, Is.EqualTo(DialogResult.OK));
                     Assert.That(dialog.Parameter.LogicalEntityName, Is.EqualTo(table));
@@ -370,8 +369,8 @@ namespace Xrm.Sdk.PluginRegistration.Tests.CustomApis
             child.LogicalEntityName = "account";
             using (var dialog = new CustomApiParameterForm(SavedApi(), SavedApi(), child))
             {
-                Assert.That(Field<TextBox>(dialog, "logicalName").Text, Is.EqualTo("account"));
-                Assert.That(Field<TextBox>(dialog, "logicalName").ReadOnly, Is.True);
+                Assert.That(Field<FilteringComboBox>(dialog, "logicalName").Text, Is.EqualTo("account"));
+                Assert.That(Field<FilteringComboBox>(dialog, "logicalName").Enabled, Is.False);
                 Assert.That(Field<Label>(dialog, "tableHint").Text, Does.Contain("fixed after creation"));
             }
         }
@@ -464,7 +463,7 @@ namespace Xrm.Sdk.PluginRegistration.Tests.CustomApis
             using (var dialog = new CustomApiEditorForm(new RecordingOrganizationService(), original))
             {
                 Assert.That(Field<TextBox>(dialog, "uniqueName").ReadOnly, Is.True);
-                Assert.That(Field<TextBox>(dialog, "boundTable").ReadOnly, Is.True);
+                Assert.That(Field<FilteringComboBox>(dialog, "boundTable").Enabled, Is.False);
                 Assert.That(Field<ComboBox>(dialog, "binding").Enabled, Is.False);
                 Assert.That(Field<ComboBox>(dialog, "processing").Enabled, Is.False);
                 Assert.That(Field<CheckBox>(dialog, "function").Enabled, Is.False);
@@ -473,7 +472,7 @@ namespace Xrm.Sdk.PluginRegistration.Tests.CustomApis
             using (var dialog = new CustomApiParameterForm(original, original, original.RequestParameters[0]))
             {
                 Assert.That(Field<TextBox>(dialog, "uniqueName").ReadOnly, Is.True);
-                Assert.That(Field<TextBox>(dialog, "logicalName").ReadOnly, Is.True);
+                Assert.That(Field<FilteringComboBox>(dialog, "logicalName").Enabled, Is.False);
                 Assert.That(Field<ComboBox>(dialog, "type").Enabled, Is.False);
                 Assert.That(Field<CheckBox>(dialog, "optional").Enabled, Is.False);
                 Assert.That(Field<TextBox>(dialog, "displayName").ReadOnly, Is.False);
@@ -537,18 +536,63 @@ namespace Xrm.Sdk.PluginRegistration.Tests.CustomApis
                 var types = Field<List<CustomApiPluginTypeOption>>(dialog, "pluginTypes");
                 types.Add(new CustomApiPluginTypeOption { Id = originalHandler, Name = "First.Plugin", AssemblyName = "First" });
                 types.Add(new CustomApiPluginTypeOption { Id = Guid.NewGuid(), Name = "Second.Plugin", AssemblyName = "Second" });
-                var assemblies = Field<ComboBox>(dialog, "assembly");
-                assemblies.DataSource = new List<string> { "(All assemblies)", "First", "Second" };
+                var assemblies = Field<FilteringComboBox>(dialog, "assembly");
+                assemblies.SetChoices(new[] { new SearchChoice("First", key: "First"), new SearchChoice("Second", key: "Second") },
+                    Field<SearchChoice>(dialog, "allAssemblies"));
                 Invoke<object>(dialog, "PopulatePluginTypes", (Guid?)originalHandler);
 
-                assemblies.SelectedIndex = 2;
+                assemblies.SelectChoice(new SearchChoice("Second", key: "Second"));
 
                 Assert.That(Invoke<CustomApiDefinition>(dialog, "CaptureDraft").PluginTypeId, Is.EqualTo(originalHandler));
-                var handlers = Field<ComboBox>(dialog, "pluginType");
-                Assert.That(handlers.GetItemText(handlers.SelectedItem), Does.Contain("another assembly"));
-                handlers.SelectedIndex = 0; // None is an explicit choice, unlike changing the assembly filter.
+                var handlers = Field<FilteringComboBox>(dialog, "pluginType");
+                Assert.That(handlers.Text, Does.Contain("another assembly"));
+                // None is an explicit choice, unlike changing the assembly filter.
+                handlers.SelectChoice(Field<SearchChoice>(dialog, "noHandler"));
                 Assert.That(Invoke<CustomApiDefinition>(dialog, "CaptureDraft").PluginTypeId, Is.Null);
             }
+        }
+
+        [Test]
+        public void OpeningAnApiSelectsItsHandlersAssembly()
+        {
+            Guid handler = Guid.NewGuid();
+            var service = new RecordingOrganizationService
+            {
+                OnRetrieveMultiple = query => query.EntityName == "plugintype"
+                    ? new EntityCollection(new[] { PluginType(Guid.NewGuid(), "First.Plugin", "First"), PluginType(handler, "Second.Plugin", "Second") })
+                    : new EntityCollection()
+            };
+            var withHandler = SavedApi();
+            withHandler.PluginTypeId = handler;
+            var unavailable = SavedApi();
+            unavailable.PluginTypeId = Guid.NewGuid();
+            var expectations = new[]
+            {
+                (Api: withHandler, Assembly: "Second", Handler: "Second.Plugin", Choices: 2),
+                (Api: unavailable, Assembly: "Unavailable assembly", Handler: "Current handler (" + unavailable.PluginTypeId + ")", Choices: 2),
+                (Api: SavedApi(), Assembly: "(All assemblies)", Handler: "(None)", Choices: 3)
+            };
+            foreach (var expected in expectations)
+            {
+                using (var dialog = new CustomApiEditorForm(service, expected.Api))
+                {
+                    LoadChoices(dialog);
+                    Assert.That(Field<FilteringComboBox>(dialog, "assembly").Text, Is.EqualTo(expected.Assembly));
+                    var handlers = Field<ComboBox>(dialog, "pluginType");
+                    Assert.That(handlers.GetItemText(handlers.SelectedItem), Is.EqualTo(expected.Handler));
+                    // (None) plus the selected assembly's types, or every type without a filter.
+                    Assert.That(handlers.Items.Count, Is.EqualTo(expected.Choices));
+                    Assert.That(Invoke<CustomApiDefinition>(dialog, "CaptureDraft").PluginTypeId, Is.EqualTo(expected.Api.PluginTypeId));
+                }
+            }
+        }
+
+        private static Entity PluginType(Guid id, string name, string assembly)
+        {
+            return new Entity("plugintype", id)
+            {
+                ["typename"] = name, ["assembly.name"] = new AliasedValue("pluginassembly", "name", assembly)
+            };
         }
 
         private static CustomApiDefinition SavedApi()

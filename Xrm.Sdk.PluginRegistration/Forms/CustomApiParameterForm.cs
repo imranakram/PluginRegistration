@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Drawing;
 using System.Linq;
 using System.Windows.Forms;
+using Xrm.Sdk.PluginRegistration.Controls;
 using Xrm.Sdk.PluginRegistration.Helpers;
 using Xrm.Sdk.PluginRegistration.Models;
 using Label = System.Windows.Forms.Label;
@@ -20,13 +21,19 @@ namespace Xrm.Sdk.PluginRegistration.Forms
         private readonly TextBox uniqueName = CustomApiFormLayout.Text(128);
         private readonly TextBox displayName = CustomApiFormLayout.Text(100);
         private readonly TextBox description;
-        private readonly TextBox logicalName = CustomApiFormLayout.Text(100);
+        private readonly FilteringComboBox logicalName = CustomApiFormLayout.Search(100);
         private readonly Label tableHint = new Label { AutoSize = true, MaximumSize = new Size(420, 0) };
         private readonly ComboBox type = CustomApiFormLayout.Choices();
         private readonly CheckBox optional = new CheckBox { Text = "Optional", AutoSize = true };
 
         public CustomApiParameterForm(CustomApiDefinition parent, CustomApiDefinition originalParent,
             CustomApiParameter parameter, IEnumerable<string> tableNames = null)
+            : this(parent, originalParent, parameter, SearchChoice.FromValues(tableNames))
+        {
+        }
+
+        public CustomApiParameterForm(CustomApiDefinition parent, CustomApiDefinition originalParent,
+            CustomApiParameter parameter, IEnumerable<SearchChoice> tables)
         {
             this.parent = parent ?? throw new ArgumentNullException(nameof(parent));
             this.originalParent = originalParent;
@@ -49,7 +56,7 @@ namespace Xrm.Sdk.PluginRegistration.Forms
             CustomApiFormLayout.AddRow(fields, "Display name *", displayName);
             CustomApiFormLayout.AddRow(fields, "Description", description);
             CustomApiFormLayout.AddRow(fields, "Type *", type);
-            CustomApiFormLayout.SuggestTables(logicalName, tableNames);
+            logicalName.SetChoices(tables);
             CustomApiFormLayout.AddRow(fields, "Table logical name", logicalName);
             CustomApiFormLayout.AddRow(fields, string.Empty, tableHint);
             if (request) CustomApiFormLayout.AddRow(fields, "Is optional", optional);
@@ -95,13 +102,13 @@ namespace Xrm.Sdk.PluginRegistration.Forms
             var selected = type.SelectedItem as CustomApiParameterType?;
             bool allowsTable = selected == CustomApiParameterType.Entity || selected == CustomApiParameterType.EntityReference ||
                 (initial is CustomApiRequestParameter && selected == CustomApiParameterType.EntityCollection);
-            logicalName.ReadOnly = initial.Id != Guid.Empty || !allowsTable;
-            logicalName.Enabled = allowsTable;
+            // A combo box has no read-only state; disabled still shows the fixed value.
+            logicalName.Enabled = initial.Id == Guid.Empty && allowsTable;
             tableHint.Text = initial.Id != Guid.Empty
                 ? "Type and table logical name are fixed after creation."
                 : !allowsTable ? "This type does not support a table logical name."
-                : "Enter a table logical name; matching tables are suggested as you type. Leave blank for any table.";
-            if (initial.Id == Guid.Empty && !allowsTable) logicalName.Clear();
+                : "Type to search tables by logical or display name, or enter a logical name. Leave blank for any table.";
+            if (initial.Id == Guid.Empty && !allowsTable) logicalName.Text = string.Empty;
         }
 
         private void AcceptClicked(object sender, EventArgs args)

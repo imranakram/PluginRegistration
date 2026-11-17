@@ -30,13 +30,16 @@ namespace Xrm.Sdk.PluginRegistration.Helpers
                 plugins.Criteria.AddCondition("plugintypeid", ConditionOperator.Equal, currentPluginTypeId.Value);
             var assembly = plugins.AddLink("pluginassembly", "pluginassemblyid", "pluginassemblyid", JoinOperator.LeftOuter);
             assembly.EntityAlias = "assembly";
-            assembly.Columns = new ColumnSet("name");
+            assembly.Columns = new ColumnSet("name", "version");
             plugins.AddOrder("typename", OrderType.Ascending);
             var pluginOptions = service.RetrieveMultipleAllPages(plugins).Entities.Select(entity => new CustomApiPluginTypeOption
             {
                 Id = entity.Id,
                 Name = entity.GetAttributeValue<string>("typename") ?? entity.GetAttributeValue<string>("name") ?? entity.Id.ToString(),
-                AssemblyName = entity.GetAttributeValue<AliasedValue>("assembly.name")?.Value as string ?? "Unknown assembly"
+                AssemblyName = entity.GetAttributeValue<AliasedValue>("assembly.name")?.Value as string ?? "Unknown assembly",
+                // Dataverse keeps assemblies of the same name apart by major version, so both identify one.
+                AssemblyId = entity.GetAttributeValue<EntityReference>("pluginassemblyid")?.Id,
+                AssemblyVersion = entity.GetAttributeValue<AliasedValue>("assembly.version")?.Value as string
             }).ToList();
             if (currentPluginTypeId.HasValue && pluginOptions.All(option => option.Id != currentPluginTypeId.Value))
             {
@@ -125,6 +128,15 @@ namespace Xrm.Sdk.PluginRegistration.Helpers
         public Guid Id { get; set; }
         public string Name { get; set; }
         public string AssemblyName { get; set; }
+        public Guid? AssemblyId { get; set; }
+        public string AssemblyVersion { get; set; }
+
+        /// <summary>The assembly's name and version, for example "Contoso.Plugins (2.0.0.0)".</summary>
+        public string AssemblyLabel => string.IsNullOrEmpty(AssemblyVersion) ? AssemblyName ?? string.Empty
+            : (AssemblyName ?? string.Empty) + " (" + AssemblyVersion + ")";
+
+        /// <summary>Tells two assemblies with the same name apart, also when the id isn't known.</summary>
+        public object AssemblyKey => (object)AssemblyId ?? AssemblyLabel;
     }
 
     public sealed class CustomApiPublisherOption

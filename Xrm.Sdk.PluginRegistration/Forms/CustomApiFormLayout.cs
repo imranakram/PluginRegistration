@@ -2,6 +2,7 @@ using System.Collections.Generic;
 using System.Drawing;
 using System.Linq;
 using System.Windows.Forms;
+using Xrm.Sdk.PluginRegistration.Controls;
 
 namespace Xrm.Sdk.PluginRegistration.Forms
 {
@@ -32,14 +33,16 @@ namespace Xrm.Sdk.PluginRegistration.Forms
             };
         }
 
-        /// <summary>Suggests table names as the user types, matching the step registration form.</summary>
-        public static void SuggestTables(TextBox table, IEnumerable<string> tableNames)
+        /// <summary>An editable picker that lists the choices containing the typed text.</summary>
+        public static FilteringComboBox Search(int maximum)
         {
-            var suggestions = new AutoCompleteStringCollection();
-            suggestions.AddRange((tableNames ?? Enumerable.Empty<string>()).ToArray());
-            table.AutoCompleteCustomSource = suggestions;
-            table.AutoCompleteSource = AutoCompleteSource.CustomSource;
-            table.AutoCompleteMode = AutoCompleteMode.Suggest;
+            return new FilteringComboBox { MaxLength = maximum };
+        }
+
+        /// <summary>A searchable picker whose value is always one of its choices.</summary>
+        public static FilteringComboBox Pick()
+        {
+            return new FilteringComboBox { RestrictToChoices = true };
         }
 
         public static TableLayoutPanel CreateFields()

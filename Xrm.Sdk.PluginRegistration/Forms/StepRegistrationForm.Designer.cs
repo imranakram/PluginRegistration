@@ -42,9 +42,9 @@
             this.lblDescription = new System.Windows.Forms.Label();
             this.txtSecondaryEntity = new System.Windows.Forms.TextBox();
             this.lblSecondaryEntity = new System.Windows.Forms.Label();
-            this.txtPrimaryEntity = new System.Windows.Forms.TextBox();
+            this.txtPrimaryEntity = new Xrm.Sdk.PluginRegistration.Controls.FilteringComboBox();
             this.lblPrimaryEntity = new System.Windows.Forms.Label();
-            this.txtMessageName = new System.Windows.Forms.TextBox();
+            this.txtMessageName = new Xrm.Sdk.PluginRegistration.Controls.FilteringComboBox();
             this.lblMessageName = new System.Windows.Forms.Label();
             this.cmbWebhook = new System.Windows.Forms.ComboBox();
             this.cmbPlugins = new System.Windows.Forms.ComboBox();
@@ -246,11 +246,9 @@
             // 
             this.txtPrimaryEntity.Anchor = ((System.Windows.Forms.AnchorStyles)(((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Left) 
             | System.Windows.Forms.AnchorStyles.Right)));
-            this.txtPrimaryEntity.AutoCompleteMode = System.Windows.Forms.AutoCompleteMode.Suggest;
-            this.txtPrimaryEntity.AutoCompleteSource = System.Windows.Forms.AutoCompleteSource.CustomSource;
             this.txtPrimaryEntity.Location = new System.Drawing.Point(127, 39);
             this.txtPrimaryEntity.Name = "txtPrimaryEntity";
-            this.txtPrimaryEntity.Size = new System.Drawing.Size(316, 20);
+            this.txtPrimaryEntity.Size = new System.Drawing.Size(316, 21);
             this.txtPrimaryEntity.TabIndex = 5;
             this.txtPrimaryEntity.TextChanged += new System.EventHandler(this.MessageData_TextChanged);
             this.txtPrimaryEntity.Enter += new System.EventHandler(this.txtPrimaryEntity_Enter);
@@ -269,11 +267,9 @@
             // 
             this.txtMessageName.Anchor = ((System.Windows.Forms.AnchorStyles)(((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Left) 
             | System.Windows.Forms.AnchorStyles.Right)));
-            this.txtMessageName.AutoCompleteMode = System.Windows.Forms.AutoCompleteMode.Suggest;
-            this.txtMessageName.AutoCompleteSource = System.Windows.Forms.AutoCompleteSource.CustomSource;
             this.txtMessageName.Location = new System.Drawing.Point(127, 13);
             this.txtMessageName.Name = "txtMessageName";
-            this.txtMessageName.Size = new System.Drawing.Size(316, 20);
+            this.txtMessageName.Size = new System.Drawing.Size(316, 21);
             this.txtMessageName.TabIndex = 3;
             this.txtMessageName.TextChanged += new System.EventHandler(this.MessageData_TextChanged);
             this.txtMessageName.Enter += new System.EventHandler(this.txtMessageName_Enter);
@@ -770,11 +766,11 @@
         #endregion
 
         private System.Windows.Forms.GroupBox grpGeneral;
-        private System.Windows.Forms.TextBox txtMessageName;
+        private Xrm.Sdk.PluginRegistration.Controls.FilteringComboBox txtMessageName;
         private System.Windows.Forms.Label lblMessageName;
         private System.Windows.Forms.TextBox txtSecondaryEntity;
         private System.Windows.Forms.Label lblSecondaryEntity;
-        private System.Windows.Forms.TextBox txtPrimaryEntity;
+        private Xrm.Sdk.PluginRegistration.Controls.FilteringComboBox txtPrimaryEntity;
         private System.Windows.Forms.Label lblPrimaryEntity;
         private System.Windows.Forms.ComboBox cmbPlugins;
         private System.Windows.Forms.Label lblImpersonation;

@@ -114,8 +114,8 @@ namespace Xrm.Sdk.PluginRegistration
 
                 toolWebHookRegister.Image = nodeImageList[CrmTreeNodeImageType.WebHook];
 
-                imlEnableImages.Images.Add("enableStep", nodeImageList[CrmTreeNodeImageType.StepEnabled]);
-                imlEnableImages.Images.Add("disableStep", nodeImageList[CrmTreeNodeImageType.StepDisabled]);
+                imlEnableImages.Images.Add("enableStep", CrmTreeControl.FitIcon(nodeImageList[CrmTreeNodeImageType.StepEnabled], imlEnableImages.ImageSize.Width));
+                imlEnableImages.Images.Add("disableStep", CrmTreeControl.FitIcon(nodeImageList[CrmTreeNodeImageType.StepDisabled], imlEnableImages.ImageSize.Width));
 
                 UpdateEnableButton(true);
 
@@ -192,10 +192,10 @@ namespace Xrm.Sdk.PluginRegistration
                 toolClose.Image = imageList["Close"];
                 toolExport.Image = imageList["Save"];
 
-                imlEnableImages.Images.Add("installProfiler", imageList["InstallProfiler"]);
-                imlEnableImages.Images.Add("enableProfiler", imageList["EnableProfiler"]);
-                imlEnableImages.Images.Add("disableProfiler", imageList["DisableProfiler"]);
-                imlEnableImages.Images.Add("uninstallProfiler", imageList["UninstallProfiler"]);
+                imlEnableImages.Images.Add("installProfiler", CrmTreeControl.FitIcon(imageList["InstallProfiler"], imlEnableImages.ImageSize.Width));
+                imlEnableImages.Images.Add("enableProfiler", CrmTreeControl.FitIcon(imageList["EnableProfiler"], imlEnableImages.ImageSize.Width));
+                imlEnableImages.Images.Add("disableProfiler", CrmTreeControl.FitIcon(imageList["DisableProfiler"], imlEnableImages.ImageSize.Width));
+                imlEnableImages.Images.Add("uninstallProfiler", CrmTreeControl.FitIcon(imageList["UninstallProfiler"], imlEnableImages.ImageSize.Width));
             }
             catch (Exception)
             {
@@ -221,6 +221,9 @@ namespace Xrm.Sdk.PluginRegistration
             }
             trvPlugins.CrmTreeNodeSorter = m_entitySorter;
             InitializeCustomApiMenus();
+
+            // Menus hide item tooltips by default; Register New Image uses its tooltip to say why it is off
+            toolRegister.DropDown.ShowItemToolTips = mnuContextNode.ShowItemToolTips = mnuContextGeneral.ShowItemToolTips = true;
 
             //this.RefreshProfilerGeneralMenu();
 
@@ -270,7 +273,8 @@ namespace Xrm.Sdk.PluginRegistration
             Assembly,
             Message,
             Entity,
-            Package
+            Package,
+            CustomApi
         }
 
         #endregion Private Enums
@@ -335,6 +339,12 @@ namespace Xrm.Sdk.PluginRegistration
             if (image == null)
             {
                 throw new ArgumentNullException("image");
+            }
+
+            // In Display by Custom API, the step may not be listed.
+            if (!trvPlugins.HasNode(image.StepId))
+            {
+                return;
             }
 
             trvPlugins.AddNode(image.StepId, image);
@@ -414,15 +424,19 @@ namespace Xrm.Sdk.PluginRegistration
 
                     break;
 
+                case CrmViewType.CustomApi:
+                    // Only steps on the message of a listed Custom API have a place in this view.
+                    if (!customApiMessageNodes.TryGetValue(step.MessageId, out var apiNode))
+                    {
+                        return;
+                    }
+                    parentId = apiNode.NodeId;
+                    apiNode.AddStep(step);
+                    m_stepParentList[step.StepId] = parentId;
+                    break;
+
                 case CrmViewType.Entity:
                 case CrmViewType.Message:
-                    if (m_currentView == CrmViewType.Message && customApiMessageNodes.TryGetValue(step.MessageId, out var apiNode))
-                    {
-                        parentId = apiNode.NodeId;
-                        apiNode.AddStep(step);
-                        m_stepParentList[step.StepId] = parentId;
-                        break;
-                    }
                     parentId = CreateCrmTreeNodes(m_currentView, step.MessageId, step.MessageEntityId, true).NodeId;
 
                     //Add to the step parent id list
@@ -532,6 +546,10 @@ namespace Xrm.Sdk.PluginRegistration
             else if (e.Control && e.Shift && e.KeyCode == Keys.M && toolViewMessage.Enabled)
             {
                 toolViewMessage.PerformClick();
+            }
+            else if (e.Control && e.Shift && e.KeyCode == Keys.C && toolViewCustomApi.Enabled)
+            {
+                toolViewCustomApi.PerformClick();
             }
         }
 
@@ -1440,19 +1458,10 @@ namespace Xrm.Sdk.PluginRegistration
                                 m_viewNodeList.Clear();
                             }
 
-                            var apiNodes = view == CrmViewType.Message ? CreateCustomApiNodes() : new List<CrmCustomApiNode>();
-
-                            // API roots exist independently of registered steps and message filters.
                             foreach (var step in Organization.Steps)
                             {
                                 if (step.MessageId != Guid.Empty)
                                 {
-                                    if (customApiMessageNodes.TryGetValue(step.MessageId, out var apiNode))
-                                    {
-                                        apiNode.AddStep(step);
-                                        m_stepParentList.Add(step.StepId, apiNode.NodeId);
-                                        continue;
-                                    }
                                     CrmTreeNode parentNode = CreateCrmTreeNodes(view, step.MessageId, step.MessageEntityId, false);
                                     if (parentNode == null)
                                     {
@@ -1465,9 +1474,29 @@ namespace Xrm.Sdk.PluginRegistration
 
                             var nodeList = new List<ICrmTreeNode>();
                             nodeList.AddRange(m_rootNodeList.Values);
-                            nodeList.AddRange(apiNodes);
 
                             trvPlugins.LoadNodes(nodeList);
+                        }
+                        break;
+
+                    case CrmViewType.CustomApi:
+                        {
+                            m_rootNodeList = null;
+                            m_viewNodeList = null;
+                            m_stepParentList = new Dictionary<Guid, Guid>();
+
+                            // Every Custom API, with or without steps, and the steps on its message beneath it
+                            var apiNodes = CreateCustomApiNodes(m_settings?.ShowManagedCustomApis ?? false);
+                            foreach (var step in Organization.Steps)
+                            {
+                                if (step.MessageId != Guid.Empty && customApiMessageNodes.TryGetValue(step.MessageId, out var apiNode))
+                                {
+                                    apiNode.AddStep(step);
+                                    m_stepParentList.Add(step.StepId, apiNode.NodeId);
+                                }
+                            }
+
+                            trvPlugins.LoadNodes(apiNodes.Cast<ICrmTreeNode>().ToList());
                         }
                         break;
 
@@ -1476,6 +1505,7 @@ namespace Xrm.Sdk.PluginRegistration
                 }
 
                 m_currentView = view;
+                UpdateManagedCustomApisButton();
 
                 if (currentCheckedItem != null)
                 {
@@ -1519,6 +1549,8 @@ namespace Xrm.Sdk.PluginRegistration
             }
 
             var settings = m_settings;
+            tsbHideManagedCustomApis.Checked = !settings.ShowManagedCustomApis;
+            UpdateManagedCustomApisButton();
             organizationLoading = true;
             SetRegistrationControlsEnabled(false);
             var instruction = new WorkAsyncInfo()
@@ -1632,6 +1664,13 @@ namespace Xrm.Sdk.PluginRegistration
         public static bool CanRegisterImageFrom(CrmTreeNodeType? selected) =>
             selected == CrmTreeNodeType.Step;
 
+        /// <summary>Why the step can't have images, or null when it can or its message isn't known.</summary>
+        internal string ImageUnsupportedReason(CrmPluginStep step)
+        {
+            if (step == null || m_org == null || !m_org.Messages.ContainsKey(step.MessageId)) return null;
+            return ImageSupport.Reason(m_org.Messages[step.MessageId], CustomApiSummaries, m_org.Messages);
+        }
+
         private void SelectItem(ICrmTreeNode node)
         {
             //Reset the visibility and enabled properties because we don't what is enabled
@@ -1666,8 +1705,11 @@ namespace Xrm.Sdk.PluginRegistration
             // Menu, toolbar and shortcuts (which check the toolbar item) follow the same rule
             var canRegisterStep = CanRegisterStepFrom(node?.NodeType);
             toolStepRegister.Enabled = mnuContextNodeStepRegister.Enabled = mnuContextGeneralStepRegister.Enabled = canRegisterStep;
-            var canRegisterImage = CanRegisterImageFrom(node?.NodeType);
+            // A step whose message can't have images, such as one on a Custom API, isn't offered the command
+            string imageBlock = ImageUnsupportedReason(node as CrmPluginStep);
+            var canRegisterImage = CanRegisterImageFrom(node?.NodeType) && imageBlock == null;
             toolImageRegister.Enabled = mnuContextNodeImageRegister.Enabled = mnuContextGeneralImageRegister.Enabled = canRegisterImage;
+            toolImageRegister.ToolTipText = mnuContextNodeImageRegister.ToolTipText = mnuContextGeneralImageRegister.ToolTipText = imageBlock;
 
             bool isSystemNode = IsNodeSystemItem(trvPlugins.SelectedNode);
             if (node == null)
