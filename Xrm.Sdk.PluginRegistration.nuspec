@@ -13,12 +13,19 @@
 		<license type="expression">MIT</license>
 		<requireLicenseAcceptance>false</requireLicenseAcceptance>
 		<description>
-			The Classic Microsoft Dynamics CRM tool, now in the XrmToolBox suite.
+			Register and manage plug-ins, custom workflow activities, steps, images, plug-in packages, webhooks, Azure service endpoints and Custom APIs in Microsoft Dataverse and Dynamics 365.
 
-			This is special flavor of classical Plugin Registration Tool provided by Microsoft as CRM SDK code sample. It was adopted to the format of an XrmToolBox tool and intended to work with the same set of the Common Data Service / Dynamics 365 / CRM versions as supported by main application.
+			Based on the classic Plug-in Registration Tool that Microsoft published as a Dynamics CRM 2011 SDK sample, ported to XrmToolBox and extended by the community.
 		</description>
-		<summary>The Classic Microsoft Dynamics CRM tool, now in the XrmToolBox suite</summary>
+		<summary>Register plug-ins, steps, images, webhooks, service endpoints and Custom APIs in Dataverse, from XrmToolBox</summary>
 		<releaseNotes>
+New: Azure service endpoints
+- #36: Register and update service endpoints from the Register menu: Service Bus queues and topics, Event Hubs, one-way, two-way and REST relays, and Event Grid, with a SAS key, SAS token or access key, message format and user claim. Update and Export no longer fail on a service endpoint
+- #36: When editing an endpoint, keys and tokens left empty keep their saved values. The namespace address can be entered as a host name or an https address
+- #36: Steps on a service endpoint show under it, can be registered from its context menu, also with managed assemblies hidden, and can have images
+- Endpoints that Dataverse manages itself, such as Managed Data Lake, can't be edited, unregistered or given steps
+- Webhooks and service endpoints have their own icons, and the properties pane only shows the fields that apply to the endpoint's type
+
 New: Custom APIs
 - #173: Register, edit and delete Custom APIs together with their request parameters and response properties, from the Register menu or an API's context menu. Fields that Dataverse fixes after creation are read-only, and managed APIs are protected (thanks @WebbontheWeb)
 - #173: View > Display by Custom API (Ctrl+Shift+C) lists the Custom APIs, also those without steps, with the steps on each API's message beneath it. Managed APIs are hidden until you turn off Hide Managed Custom APIs on the toolbar. Custom APIs have their own icon, an envelope with a gear
@@ -38,6 +45,11 @@ New: managed identities (Dataverse online only)
 UX &amp; stability improvements, bug fixes
 - The Update button has a new icon at the toolbar's size, instead of the old small one blown up
 - Sharper icons in the tree and on the Enable/Disable button: they were squeezed to 16 pixels in 256 colours, and are now full colour and a little larger, growing with Windows display scaling
+- Register New Step is only offered where a step can go: on a plug-in, service endpoint, webhook, message or Custom API. Register New Image is only offered on a step, and the dialog opens with that step selected. Menus, toolbar and shortcuts follow the same rule
+- New images on Create steps have Post Image ticked, with a tooltip explaining why a Create step can't have a pre-image
+- #145: A fast double-click on a checkbox in the Register New Assembly dialog no longer leaves the assembly ticked and its plug-ins unticked
+- Registering an assembly no longer fails at random with "Index was outside the bounds of the array"
+- Register New Custom API is no longer offered on webhook and service endpoint nodes
 - #175: Each connection now shows its own SDK messages. After changing connection, or with the tool open in two tabs, the step editor used to offer the messages of the first environment (thanks @WebbontheWeb)
 - #175: Refresh (F5) retries a failed load, and a failed refresh keeps the current tree instead of closing the connection
 - #175: Registration commands are disabled while the organization is loading
