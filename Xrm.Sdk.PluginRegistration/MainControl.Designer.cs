@@ -622,8 +622,8 @@ namespace Xrm.Sdk.PluginRegistration
             // 
             // imlEnableImages
             // 
-            this.imlEnableImages.ColorDepth = System.Windows.Forms.ColorDepth.Depth8Bit;
-            this.imlEnableImages.ImageSize = new System.Drawing.Size(16, 16);
+            this.imlEnableImages.ColorDepth = System.Windows.Forms.ColorDepth.Depth32Bit;
+            this.imlEnableImages.ImageSize = new System.Drawing.Size(24, 24);
             this.imlEnableImages.TransparentColor = System.Drawing.Color.Transparent;
             // 
             // splitterDisplay

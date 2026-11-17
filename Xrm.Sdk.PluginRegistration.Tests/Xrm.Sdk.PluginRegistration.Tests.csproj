@@ -72,6 +72,8 @@
     <Compile Include="CustomApis\CustomApiEditorFormTests.cs" />
     <Compile Include="CustomApis\CustomApiMetadataTests.cs" />
     <Compile Include="CustomApis\CustomApiHandlerPickerTests.cs" />
+    <Compile Include="CustomApis\ImageSupportTests.cs" />
+    <Compile Include="CustomApis\StepMessageChoicesTests.cs" />
     <Compile Include="CustomApis\OrganizationMessageCacheTests.cs" />
     <Compile Include="CustomApis\CustomApiValidatorTests.cs" />
     <Compile Include="ManagedIdentities\ManagedIdentityTests.cs" />

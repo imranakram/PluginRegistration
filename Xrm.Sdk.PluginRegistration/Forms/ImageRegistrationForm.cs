@@ -21,7 +21,8 @@ namespace Xrm.Sdk.PluginRegistration.Forms
     using Helpers;
     using System;
     using System.Collections.Generic;
-    using System.Text;
+    using System.Diagnostics;
+    using System.Drawing;
     using System.Windows.Forms;
     using Wrappers;
 
@@ -33,6 +34,7 @@ namespace Xrm.Sdk.PluginRegistration.Forms
         private CrmOrganization m_org;
         private MainControl m_orgControl;
         private ToolTip _toolTip; // Tooltip for "Pre" checkbox when it is disabled for Create message
+        private LinkLabel lnkImageSupport;
 
         #endregion Private Fields
 
@@ -60,6 +62,19 @@ namespace Xrm.Sdk.PluginRegistration.Forms
             InitializeComponent();
 
             _toolTip = new ToolTip();
+
+            //Says which messages support images, and why the selected step can't have one, beside the buttons
+            lnkImageSupport = new LinkLabel
+            {
+                Anchor = AnchorStyles.Bottom | AnchorStyles.Left | AnchorStyles.Right,
+                AutoEllipsis = true,
+                Location = new Point(grpImageType.Left + 2, btnRegister.Top + 5),
+                Name = "lnkImageSupport",
+                Size = new Size(btnRegister.Left - grpImageType.Left - 10, 15)
+            };
+            lnkImageSupport.LinkClicked += (sender, args) => Process.Start(ImageSupport.DocsUrl);
+            Controls.Add(lnkImageSupport);
+            ShowImageSupport(null);
 
             crmParameters.Organization = org;
 
@@ -154,6 +169,30 @@ namespace Xrm.Sdk.PluginRegistration.Forms
 
         #region Public Methods
 
+        public const string ImageSupportLink = "Which messages support images?";
+        public const string LearnMore = "Learn more";
+
+        /// <summary>
+        /// Shows why the selected step can't have images, with a link to Microsoft's list, or just the
+        /// link when it can. The full reason, with the messages that can, is in the tooltip.
+        /// </summary>
+        private void ShowImageSupport(string reason)
+        {
+            if (reason == null)
+            {
+                lnkImageSupport.Text = ImageSupportLink;
+                lnkImageSupport.LinkArea = new LinkArea(0, ImageSupportLink.Length);
+                _toolTip.SetToolTip(lnkImageSupport, ImageSupport.DocsUrl);
+                return;
+            }
+
+            // The first sentence fits beside the buttons; the tooltip holds the list
+            string shortReason = reason.Substring(0, reason.IndexOf(". ", StringComparison.Ordinal) + 1);
+            lnkImageSupport.Text = shortReason + " " + LearnMore;
+            lnkImageSupport.LinkArea = new LinkArea(shortReason.Length + 1, LearnMore.Length);
+            _toolTip.SetToolTip(lnkImageSupport, reason);
+        }
+
         public const string CreateImageTypeHint =
             "Steps on Create can only have a post-image: the record doesn't exist before it's created, " +
             "so there is nothing for a pre-image to hold.";
@@ -218,28 +257,13 @@ namespace Xrm.Sdk.PluginRegistration.Forms
                 step = m_org.Steps[m_currentImage.StepId];
             }
 
-            //Retrieve the message
-            CrmMessage message = m_org.Messages[step.MessageId];
-
-            //Verify that this step can have images
-            if (0 == message.ImageMessagePropertyNames.Count)
+            //Verify that this step can have images. Help opens Microsoft's list.
+            string unsupported = m_orgControl.ImageUnsupportedReason(step);
+            if (unsupported != null)
             {
-                //Create a list of the messages that can have images
-                StringBuilder sb = new StringBuilder();
-                sb.AppendLine("Only steps registered on the following messages can have images:");
-                foreach (CrmMessage item in m_org.Messages.Values)
-                {
-                    if (0 != item.ImageMessagePropertyNames.Count)
-                    {
-                        sb.AppendFormat(System.Globalization.CultureInfo.InvariantCulture, "- {0}{1}",
-                            item.Name, Environment.NewLine);
-                    }
-                }
-
-                sb.AppendLine();
-                sb.Append("Please select a different step and try again.");
-
-                MessageBox.Show(sb.ToString(), "Invalid Step Selected", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                MessageBox.Show(this, unsupported + Environment.NewLine + Environment.NewLine + "Please select a different step.",
+                    "Invalid Step Selected", MessageBoxButtons.OK, MessageBoxIcon.Warning, MessageBoxDefaultButton.Button1,
+                    0, ImageSupport.DocsUrl);
                 return;
             }
             if (crmParameters.AllAttributes)
@@ -257,7 +281,7 @@ namespace Xrm.Sdk.PluginRegistration.Forms
             image.Attributes = crmParameters.Attributes;
             image.EntityAlias = txtEntityAlias.Text.Trim();
             image.Name = txtName.Text.Trim();
-            image.MessagePropertyName = MessagePropertyNameForm.SelectMessagePropertyName(message);
+            image.MessagePropertyName = MessagePropertyNameForm.SelectMessagePropertyName(m_org.Messages[step.MessageId]);
             if (null == image.MessagePropertyName)
             {
                 return;
@@ -354,7 +378,10 @@ namespace Xrm.Sdk.PluginRegistration.Forms
                     crmParameters.EntityName = "none";
                     crmParameters.Enabled = false;
                 }
-                btnRegister.Enabled = true;
+                // A step that can't have images can't be registered on
+                string unsupported = m_orgControl.ImageUnsupportedReason(step);
+                btnRegister.Enabled = unsupported == null;
+                ShowImageSupport(unsupported);
                 // Set PreImage checkbox state for selection
                 SetPreImageCheckboxForStep(step);
             }

@@ -151,6 +151,28 @@ namespace Xrm.Sdk.PluginRegistration.Tests.CustomApis
         }
 
         [Test]
+        public void TypingAwayFromEveryMatchInAnOpenListKeepsTheTypedText()
+        {
+            using (var form = new Form())
+            using (var combo = new FilteringComboBox { RestrictToChoices = true })
+            {
+                form.Controls.Add(combo);
+                form.Show();
+                combo.SetChoices(new[] { new SearchChoice("account"), new SearchChoice("contact") });
+                combo.SelectChoice(new SearchChoice("account"));
+                combo.Focus();
+
+                // The list opens on a match, then closes with no rows left while the native box still
+                // selects one. Reading the text then threw ArgumentOutOfRangeException.
+                combo.FilterTo("acc");
+                combo.FilterTo("accz");
+
+                Assert.That(combo.Items.Count, Is.EqualTo(0));
+                Assert.That(combo.Text, Is.EqualTo("accz"));
+            }
+        }
+
+        [Test]
         public void EditorFillsThePickersFromTheCacheAndReloadReadsAgain()
         {
             int loads = 0;

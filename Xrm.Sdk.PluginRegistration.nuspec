@@ -21,18 +21,23 @@
 		<releaseNotes>
 New: Custom APIs
 - #173: Register, edit and delete Custom APIs together with their request parameters and response properties, from the Register menu or an API's context menu. Fields that Dataverse fixes after creation are read-only, and managed APIs are protected (thanks @WebbontheWeb)
-- #173: Display by Message lists every Custom API, also those without steps, with the steps on its message beneath it
+- #173: View > Display by Custom API (Ctrl+Shift+C) lists the Custom APIs, also those without steps, with the steps on each API's message beneath it. Managed APIs are hidden until you turn off Hide Managed Custom APIs on the toolbar. Custom APIs have their own icon, an envelope with a gear
 - #173: A new API is created in an unmanaged solution that you pick or create, with the publisher prefix applied to its unique name. Parameters added later join the solutions the API is in
 - #173: Add to Solution adds an API with all its parameters and properties in one go
 - #173: Steps can be registered and edited on private Custom APIs
 - The bound table and execute privilege are searchable lists: type part of a table's logical or display name, or of a privilege name. Both are read once per connection; Reload choices reads them again, for example after adding a table. Names that aren't listed can still be typed
 - The plug-in assembly and plug-in type are searchable too, and show the assembly version, so assemblies with the same name in different major versions can be told apart
+- Register New Step: Message and Primary Entity are searchable lists. Custom API messages are marked "Custom API", so typing "custom api" lists them, and "none" says whether it means all tables or no table
+- Register New Step: on the message of a Custom API that allows only asynchronous steps, the step is set to asynchronous Post-operation, with a note saying why
+- Register New Image is greyed out on a step whose message can't have images, such as a Custom API's, and its tooltip says why. The image dialog says the same for the selected step and links to Microsoft's list of the messages that support images
 
 New: managed identities (Dataverse online only)
 - Link a managed identity to a plug-in assembly or package from its context menu or the toolbar, and create, edit or delete identities from the same dialog. New identities use version 2, which Microsoft recommends. Based on Plugin Identity Manager by David Rivard (https://github.com/drivardxrm/Driv.XTB.PluginIdentityManager), with thanks
 - The properties pane shows the linked identity of an assembly or package
 
 UX &amp; stability improvements, bug fixes
+- The Update button has a new icon at the toolbar's size, instead of the old small one blown up
+- Sharper icons in the tree and on the Enable/Disable button: they were squeezed to 16 pixels in 256 colours, and are now full colour and a little larger, growing with Windows display scaling
 - #175: Each connection now shows its own SDK messages. After changing connection, or with the tool open in two tabs, the step editor used to offer the messages of the first environment (thanks @WebbontheWeb)
 - #175: Refresh (F5) retries a failed load, and a failed refresh keeps the current tree instead of closing the connection
 - #175: Registration commands are disabled while the organization is loading

@@ -3,6 +3,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Windows.Forms;
+using Xrm.Sdk.PluginRegistration.Controls;
 using Xrm.Sdk.PluginRegistration.Forms;
 using Xrm.Sdk.PluginRegistration.Helpers;
 using Xrm.Sdk.PluginRegistration.Models;
@@ -16,8 +17,14 @@ namespace Xrm.Sdk.PluginRegistration
         private CustomApiCatalog customApiCatalog = new CustomApiCatalog();
         private readonly Dictionary<Guid, CrmCustomApiNode> customApiMessageNodes = new Dictionary<Guid, CrmCustomApiNode>();
         private readonly List<ToolStripMenuItem> customApiRegisterItems = new List<ToolStripMenuItem>();
+        private System.Drawing.Image customApiImage;
+        private ToolStripMenuItem toolViewCustomApi;
+        private ToolStripButton tsbHideManagedCustomApis;
         private int? customApiErrorGeneration;
         private bool? customApiSupport;
+
+        /// <summary>The Custom APIs of the connection, for the step form's message list and rules.</summary>
+        internal IReadOnlyList<CustomApiSummary> CustomApiSummaries => customApiCatalog.Definitions;
 
         private void ResetCustomApiState()
         {
@@ -28,15 +35,58 @@ namespace Xrm.Sdk.PluginRegistration
 
         private void InitializeCustomApiMenus()
         {
+            customApiImage = CrmResources.LoadImage(CrmTreeNodeImageType.CustomApi);
+
             // Each menu's last "Register New" item, so the API item joins that group.
             AddCustomApiRegisterItem(toolRegister.DropDownItems, toolWebHookRegister);
             AddCustomApiRegisterItem(mnuContextNode.Items, mnuContextNodeImageRegister);
             AddCustomApiRegisterItem(mnuContextGeneral.Items, mnuContextGeneralImageRegister);
+
+            toolViewCustomApi = new ToolStripMenuItem("Display by &Custom API", customApiImage, toolView_Click)
+            {
+                Name = "toolViewCustomApi",
+                Tag = CrmViewType.CustomApi,
+                ShortcutKeyDisplayString = "Ctrl+Shift+C",
+                Enabled = false
+            };
+            toolView.DropDownItems.Insert(toolView.DropDownItems.IndexOf(toolViewMessage) + 1, toolViewCustomApi);
+
+            // Shown in Display by Custom API only, which is the one view it changes
+            tsbHideManagedCustomApis = new ToolStripButton("Hide Managed Custom APIs", Resources.FilterActive)
+            {
+                Name = "tsbHideManagedCustomApis",
+                CheckOnClick = true,
+                Checked = true,
+                Visible = false,
+                ToolTipText = "Hide the managed Custom APIs, mostly Microsoft's. Steps registered on them still show in the other views."
+            };
+            tsbHideManagedCustomApis.Click += (sender, args) => ToggleManagedCustomApis();
+            toolBar.Items.Insert(toolBar.Items.IndexOf(tsbFilterAssemblies) + 1, tsbHideManagedCustomApis);
+        }
+
+        private void ToggleManagedCustomApis()
+        {
+            UpdateManagedCustomApisButton();
+            if (m_settings == null) return;
+            m_settings.ShowManagedCustomApis = !tsbHideManagedCustomApis.Checked;
+            SettingsManager.Instance.Save(GetType(), m_settings, ConnectionDetail.ConnectionId.Value.ToString());
+            if (m_org != null && m_currentView == CrmViewType.CustomApi)
+            {
+                propGridEntity.SelectedObject = null;
+                LoadNodes(CrmViewType.CustomApi);
+            }
+        }
+
+        private void UpdateManagedCustomApisButton()
+        {
+            if (tsbHideManagedCustomApis == null) return;
+            tsbHideManagedCustomApis.Image = tsbHideManagedCustomApis.Checked ? Resources.FilterActive : Resources.FilterInactive;
+            tsbHideManagedCustomApis.Visible = m_currentView == CrmViewType.CustomApi;
         }
 
         private void AddCustomApiRegisterItem(ToolStripItemCollection items, ToolStripItem after)
         {
-            var item = new ToolStripMenuItem("Register New Custom API", toolViewMessage.Image,
+            var item = new ToolStripMenuItem("Register New Custom API", customApiImage,
                 (sender, args) => OpenCustomApiEditor(null)) { Enabled = false };
             items.Insert(items.IndexOf(after) + 1, item);
             customApiRegisterItems.Add(item);
@@ -73,6 +123,7 @@ namespace Xrm.Sdk.PluginRegistration
             // schema: failures and "unsupported" are rechecked on refresh; reconnect clears it.
             customApiSupport = catalog.Error == null && catalog.Supported ? true : (bool?)null;
             foreach (var item in customApiRegisterItems) item.Enabled = catalog.Supported;
+            toolViewCustomApi.Enabled = catalog.Supported;
             if (catalog.Error != null && customApiErrorGeneration != connectionGeneration)
             {
                 customApiErrorGeneration = connectionGeneration;
@@ -82,10 +133,11 @@ namespace Xrm.Sdk.PluginRegistration
             }
         }
 
-        private List<CrmCustomApiNode> CreateCustomApiNodes()
+        private List<CrmCustomApiNode> CreateCustomApiNodes(bool showManaged)
         {
             customApiMessageNodes.Clear();
-            var nodes = customApiCatalog.Definitions.Select(api => new CrmCustomApiNode(api)).ToList();
+            var nodes = customApiCatalog.Definitions.Where(api => !api.IsManaged || showManaged)
+                .Select(api => new CrmCustomApiNode(api)).ToList();
             foreach (var node in nodes)
             {
                 if (node.SdkMessageId.HasValue && node.SdkMessageId.Value != Guid.Empty)
@@ -122,8 +174,8 @@ namespace Xrm.Sdk.PluginRegistration
                         editor.ShowDialog(ParentForm);
                         if ((editor.Saved || editor.SaveOutcomeUnknown) && generation == connectionGeneration)
                         {
-                            // Regenerate both SDK messages and the independent API roots after a save.
-                            RefreshFullTreeView(editor.SavedApiId, CrmViewType.Message);
+                            // Regenerate the SDK messages and the API roots after a save, and show the API.
+                            RefreshFullTreeView(editor.SavedApiId, CrmViewType.CustomApi);
                         }
                     }
                 }

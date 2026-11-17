@@ -305,6 +305,29 @@ namespace Xrm.Sdk.PluginRegistration.Controls
             RestoreText(text, text.Length);
         }
 
+        /// <summary>
+        /// The text, read safely. After its list is emptied and closed, the native box can still report a
+        /// selected row that no longer exists, and the base getter then throws ArgumentOutOfRangeException.
+        /// </summary>
+        public override string Text
+        {
+            get
+            {
+                if (!IsHandleCreated || SelectedIndex < Items.Count) return base.Text;
+                // What the edit box shows, without touching the stale selection.
+                var text = new System.Text.StringBuilder(GetWindowTextLength(Handle) + 1);
+                GetWindowText(Handle, text, text.Capacity);
+                return text.ToString();
+            }
+            set => base.Text = value;
+        }
+
+        [System.Runtime.InteropServices.DllImport("user32.dll", CharSet = System.Runtime.InteropServices.CharSet.Unicode)]
+        private static extern int GetWindowText(IntPtr hWnd, System.Text.StringBuilder text, int maxCount);
+
+        [System.Runtime.InteropServices.DllImport("user32.dll", CharSet = System.Runtime.InteropServices.CharSet.Unicode)]
+        private static extern int GetWindowTextLength(IntPtr hWnd);
+
         private void RestoreText(string text, int caret)
         {
             text = text ?? string.Empty;
