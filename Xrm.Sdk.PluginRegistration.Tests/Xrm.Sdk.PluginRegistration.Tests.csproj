@@ -34,6 +34,7 @@
   </PropertyGroup>
   <ItemGroup>
     <Reference Include="System" />
+    <Reference Include="System.Activities" />
     <Reference Include="System.Core" />
     <Reference Include="System.Drawing" />
     <Reference Include="System.Windows.Forms" />
@@ -64,6 +65,7 @@
     <Compile Include="Integration\CustomApiMetadataLoadTests.cs" />
     <Compile Include="Integration\ServiceEndpointMetadataTests.cs" />
     <Compile Include="Integration\RegistrationLifecycleTests.cs" />
+    <Compile Include="Assemblies\WorkflowActivityArgumentsTests.cs" />
     <Compile Include="Assemblies\WorkflowActivityUpdateTests.cs" />
     <Compile Include="Integration\TestBench.cs" />
     <Compile Include="Integration\WorkflowActivityArgumentTests.cs" />
@@ -106,6 +108,9 @@
   </ItemGroup>
   <ItemGroup>
     <PackageReference Include="Microsoft.CrmSdk.CoreAssemblies">
+      <Version>9.0.2.60</Version>
+    </PackageReference>
+    <PackageReference Include="Microsoft.CrmSdk.Workflow">
       <Version>9.0.2.60</Version>
     </PackageReference>
     <PackageReference Include="Microsoft.CrmSdk.XrmTooling.CoreAssembly">

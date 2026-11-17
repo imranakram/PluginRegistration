@@ -437,6 +437,13 @@ namespace Xrm.Sdk.PluginRegistration.Forms
                 return;
             }
 
+            // Changed workflow activity arguments can break the processes that use them, so ask first
+            if (m_currentAssembly != null && chkUpdateAssembly.Checked && !string.IsNullOrEmpty(assemblyPath) &&
+                !ConfirmActivityArgumentChanges(assembly))
+            {
+                return;
+            }
+
             // An assembly with plugins must be strongly signed
             if (pluginList.Count != 0)
             {
@@ -907,6 +914,37 @@ namespace Xrm.Sdk.PluginRegistration.Forms
             {
                 throw new NotImplementedException("Unknown Isolation Mode");
             }
+        }
+
+        /// <summary>
+        /// Lists the workflow activity argument changes in the build that existing processes may not survive,
+        /// and asks whether to update anyway. True when there are none, or the user goes ahead.
+        /// </summary>
+        private bool ConfirmActivityArgumentChanges(CrmPluginAssembly build)
+        {
+            if (!build.Plugins.Values.Any(p => p.PluginType == CrmPluginType.WorkflowActivity))
+            {
+                return true;
+            }
+
+            List<ActivityArgumentChange> changes;
+            try
+            {
+                var registered = WorkflowActivityArguments.LoadRegistered(m_org.OrganizationService, m_currentAssembly.AssemblyId);
+                changes = WorkflowActivityArguments.RiskyChanges(registered, build.Plugins.Values);
+            }
+            catch (Exception ex)
+            {
+                // The check helps but isn't required: say it couldn't run and let the update go on
+                return MessageBox.Show(this, "The workflow activities' current arguments couldn't be read, so changes to them can't be checked:" +
+                    Environment.NewLine + ex.Message + Environment.NewLine + Environment.NewLine + "Update anyway?",
+                    "Workflow activity arguments", MessageBoxButtons.YesNo, MessageBoxIcon.Warning) == DialogResult.Yes;
+            }
+
+            return changes.Count == 0 ||
+                MessageBox.Show(this, WorkflowActivityArguments.Warning(changes), "Workflow activity arguments change",
+                    MessageBoxButtons.YesNo, MessageBoxIcon.Warning, MessageBoxDefaultButton.Button2, 0,
+                    WorkflowActivityArguments.DocsUrl) == DialogResult.Yes;
         }
 
         private void LoadAssembly(CrmPluginAssembly assembly, bool checkExisting)
