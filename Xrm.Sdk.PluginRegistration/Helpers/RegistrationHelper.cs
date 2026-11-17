@@ -37,6 +37,28 @@ namespace Xrm.Sdk.PluginRegistration.Helpers
         #region Public Methods
 
         /// <summary>
+        /// The custom workflow activity types to send with an assembly update. Dataverse reads an activity's
+        /// arguments again only when its type comes with the update, so a plain update leaves the workflow
+        /// designer showing the old ones (#16). An activity still in the default group of the old version
+        /// moves to the new version's group.
+        /// </summary>
+        public static PluginType[] WorkflowActivityTypesForUpdate(IEnumerable<CrmPlugin> plugins, string originalGroupName, string newGroupName)
+        {
+            return (plugins ?? Enumerable.Empty<CrmPlugin>())
+                .Where(plugin => plugin.PluginType == CrmPluginType.WorkflowActivity)
+                .Select(plugin =>
+                {
+                    var type = new PluginType { Id = plugin.PluginId };
+                    if (string.Equals(plugin.WorkflowActivityGroupName, originalGroupName))
+                    {
+                        type.WorkflowActivityGroupName = newGroupName;
+                    }
+                    return type;
+                })
+                .ToArray();
+        }
+
+        /// <summary>
         /// Generate the default group name for an activity
         /// </summary>
         public static string GenerateDefaultGroupName(string assemblyName, Version version)

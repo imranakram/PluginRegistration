@@ -497,21 +497,11 @@ namespace Xrm.Sdk.PluginRegistration.Forms
                         var originalGroupName = RegistrationHelper.GenerateDefaultGroupName(m_currentAssembly.Name, new Version(m_currentAssembly.Version));
                         var newGroupName = RegistrationHelper.GenerateDefaultGroupName(assembly.Name, new Version(assembly.Version));
 
-                        var updateGroupNameList = new List<PluginType>();
-                        foreach (var plugin in m_currentAssembly.Plugins)
-                        {
-                            if (plugin.PluginType == CrmPluginType.WorkflowActivity && string.Equals(plugin.WorkflowActivityGroupName, originalGroupName))
-                            {
-                                updateGroupNameList.Add(new PluginType()
-                                {
-                                    Id = plugin.PluginId,
-                                    WorkflowActivityGroupName = newGroupName
-                                });
-                            }
-                        }
+                        //The workflow activities go with the update, so Dataverse reads their arguments again (#16)
+                        var activityTypes = RegistrationHelper.WorkflowActivityTypesForUpdate(m_currentAssembly.Plugins, originalGroupName, newGroupName);
 
                         //Do the actual update to the assembly
-                        RegistrationHelper.UpdateAssembly(m_org, assemblyPath, assembly, updateGroupNameList.ToArray());
+                        RegistrationHelper.UpdateAssembly(m_org, assemblyPath, assembly, activityTypes);
 
                         m_currentAssembly.Name = assembly.Name;
                         m_currentAssembly.Culture = assembly.Culture;
@@ -524,7 +514,7 @@ namespace Xrm.Sdk.PluginRegistration.Forms
 
                         retrieveDateList.Add(m_currentAssembly);
 
-                        foreach (var type in updateGroupNameList)
+                        foreach (var type in activityTypes.Where(t => t.WorkflowActivityGroupName != null))
                         {
                             var plugin = m_currentAssembly.Plugins[type.Id];
 

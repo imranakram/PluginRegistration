@@ -64,7 +64,9 @@
     <Compile Include="Integration\CustomApiMetadataLoadTests.cs" />
     <Compile Include="Integration\ServiceEndpointMetadataTests.cs" />
     <Compile Include="Integration\RegistrationLifecycleTests.cs" />
+    <Compile Include="Assemblies\WorkflowActivityUpdateTests.cs" />
     <Compile Include="Integration\TestBench.cs" />
+    <Compile Include="Integration\WorkflowActivityArgumentTests.cs" />
     <Compile Include="CustomApis\CustomApiServiceTests.cs" />
     <Compile Include="CustomApis\CustomApiEditorDataTests.cs" />
     <Compile Include="CustomApis\CustomApiTreeTests.cs" />
