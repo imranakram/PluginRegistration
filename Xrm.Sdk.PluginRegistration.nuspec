@@ -43,6 +43,8 @@ New: managed identities (Dataverse online only)
 - The properties pane shows the linked identity of an assembly or package
 
 UX &amp; stability improvements, bug fixes
+- #16: Updating an assembly now brings in arguments added to its custom workflow activities. Dataverse only reads an activity's arguments again when its plug-in type comes with the update, so the workflow designer used to keep showing the old ones
+- #16: Before such an update, the tool compares each workflow activity's arguments with the registered ones. If an argument is removed, changes type or becomes required, it lists those changes and asks before updating, since processes that use them may fail. Added optional arguments go through without a question
 - The Update button has a new icon at the toolbar's size, instead of the old small one blown up
 - Sharper icons in the tree and on the Enable/Disable button: they were squeezed to 16 pixels in 256 colours, and are now full colour and a little larger, growing with Windows display scaling
 - Register New Step is only offered where a step can go: on a plug-in, service endpoint, webhook, message or Custom API. Register New Image is only offered on a step, and the dialog opens with that step selected. Menus, toolbar and shortcuts follow the same rule

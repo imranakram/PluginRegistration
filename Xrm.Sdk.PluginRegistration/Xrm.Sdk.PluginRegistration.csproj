@@ -134,6 +134,7 @@
     <Compile Include="Helpers\CustomApiMetadata.cs" />
     <Compile Include="Helpers\ImageSupport.cs" />
     <Compile Include="Helpers\StepMessageChoices.cs" />
+    <Compile Include="Helpers\WorkflowActivityArguments.cs" />
     <Compile Include="Forms\CustomApiEditorForm.cs" />
     <Compile Include="Forms\CustomApiParameterForm.cs" />
     <Compile Include="Forms\ServiceEndpointRegistrationForm.cs">

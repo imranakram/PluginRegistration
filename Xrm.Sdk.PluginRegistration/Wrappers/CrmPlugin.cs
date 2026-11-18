@@ -592,6 +592,13 @@ namespace Xrm.Sdk.PluginRegistration.Wrappers
             }
         }
 
+        /// <summary>
+        /// A workflow activity's arguments as read from a build, to compare with the registered ones before
+        /// an update. Null when not read.
+        /// </summary>
+        [Browsable(false), XmlIgnore]
+        public List<Helpers.ActivityArgument> ActivityArguments { get; set; }
+
         #endregion Public Properties
 
         #region Public Indexers

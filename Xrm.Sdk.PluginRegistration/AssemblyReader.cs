@@ -140,6 +140,12 @@ namespace Xrm.Sdk.PluginRegistration
                         plugin.WorkflowActivityGroupName = workflowGroupName;
                     }
 
+                    if (type == CrmPluginType.WorkflowActivity)
+                    {
+                        //Compared with the registered arguments before an update
+                        plugin.ActivityArguments = WorkflowActivityArguments.Read(t);
+                    }
+
                     pluginAssembly.AddPlugin(plugin);
                 }
             }
